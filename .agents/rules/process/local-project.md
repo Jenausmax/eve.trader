@@ -36,6 +36,16 @@ zone" means»: `EveTrader.slnx`, `Directory.*.props`/`.targets`, `.editorconfig`
 composition root, CI, `.agents/rules/**`, `CLAUDE.md`. Свой список появится
 вместе со слоями решения.
 
+## Процесс — OpenSpec
+
+Разработка spec-driven через OpenSpec: норма поведения продукта — `openspec/specs/`,
+изменения — `openspec/changes/`, проектный контекст для артефактов — блок `context`
+в `openspec/config.yaml`. Артефакты на русском.
+
+Спеки описывают **что делает система**, этот набор правил — **как писать код**.
+Спека, пересказывающая правило, и правило, описывающее поведение продукта, —
+оба дубли; см. `CLAUDE.md` §«Процесс разработки — OpenSpec».
+
 ## Обновление общего набора
 
 ```bash

@@ -1,0 +1,55 @@
+schema: spec-driven
+
+context: |
+  Language: ru
+  All artifacts must be written in ru.
+  Keep OpenSpec structural headings and SHALL/MUST keywords in English.
+
+  eve.trader — агент-трейдер для EVE Online: собирает и анализирует рыночные и
+  исторические данные по продажам, выдаёт рекомендации и алерты. Стек — .NET 10.
+
+  Границы предметной области (не пожелания, а внешние ограничения):
+
+  1. Доступ к игре — только read-only публичный ESI. SSO и запись закладываются в
+     архитектуру, но не включены; требование, предполагающее авторизованный вызов,
+     должно явно помечаться как отложенное.
+  2. ESI не публикует эндпоинтов создания и изменения маркет-ордеров. Автообновление
+     ордеров возможно только автоматизацией игрового клиента, что нарушает EULA.
+     Потолок продукта — чтение, анализ, рекомендации, алерты. Требование вида
+     «агент сам выставляет ордер» неисполнимо и в спеки не едет.
+  3. Полная история по всем типам во всех регионах — сотни тысяч запросов. Любой
+     сценарий сбора обязан называть фильтр по регионам и типам и соблюдать
+     X-ESI-Error-Limit.
+
+  Приоритетные торговые стратегии: station trading (Jita 4-4), межрегиональный
+  арбитраж, производство и реакции, спекуляция на истории.
+
+  Кодстайл, архитектура и процесс — в .agents/rules/ (общий набор владельца,
+  подключён git subtree из nova/meta/rules). Спеки описывают поведение продукта и
+  не пересказывают правила. Локальные объявления репозитория —
+  .agents/rules/process/local-project.md.
+
+  Коммиты: [eve.trader](feat/<area>): <subject> — см.
+  .agents/rules/process/commit-format.md.
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always include a "Non-goals" section
+#     tasks:
+#       - Break tasks into chunks of max 2 hours
+
+# Per-operation guidance (optional)
+# Add advisory guidance for how apply and archive work should be conducted.
+# This is separate from artifact rules above.
+# Example:
+#   operations:
+#     apply:
+#       guidance:
+#         - Keep test summaries concise
+#     archive:
+#       guidance:
+#         - Summarize the archive outcome before finishing
