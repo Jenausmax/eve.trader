@@ -1,0 +1,4 @@
+# Line endings are normalised to LF everywhere so MANIFEST.json sha256 values
+# are reproducible on every platform. Do not change without regenerating the
+# manifest (`node scripts/manifest.mjs --write`).
+* text=auto eol=lf
