@@ -1,0 +1,3 @@
+# Line endings are normalised to LF everywhere so the sha256 values in
+# .agents/rules/MANIFEST.json stay reproducible on every platform.
+* text=auto eol=lf

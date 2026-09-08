@@ -1,0 +1,17 @@
+# build output
+bin/
+obj/
+artifacts/
+
+# ide / tooling
+.vs/
+.idea/
+*.user
+*.suo
+
+# local agent overrides (rules-format.md §3, tier 1)
+.agents/rules.local/
+
+# secrets
+*.env
+!*.env.example
