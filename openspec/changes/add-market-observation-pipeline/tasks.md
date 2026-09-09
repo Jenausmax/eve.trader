@@ -7,7 +7,7 @@
 - [ ] 1.5 Подключить `Microsoft.CodeAnalysis.BannedApiAnalyzers` в `EveTrader.Domain` с запретом `DateTime.UtcNow`, `DateTimeOffset.Now`, `DateTime.Now`, `TimeProvider.System` — проверка: временный вызов роняет сборку, после удаления сборка зелёная
 - [ ] 1.6 Завести проектный `ScheduledWorkerBase` в форме из `csharp/background-workers.md` (`AdaptivePollSchedule`, DI-scope на цикл, эмиссия счётчиков по `[Counter]`, политика ошибок, `Describe()`) — проверка: unit-тесты базы покрывают scope на цикл, эмиссию счётчиков при успехе и отказе, продолжение после исключения, отмену
 - [ ] 1.7 Завести `CHANGELOG.md` в корне как аналог changelog из `process/docs-completeness.md` — проверка: файл содержит запись об этом изменении со ссылкой на change
-- [ ] 1.8 Оформить и отправить наверх в `nova/meta/rules` расхождение между `architecture.md` и `project-naming-and-setup.md` в определении layered — проверка: issue или MR в репозитории правил создан, ссылка записана в `local-project-layers.md`
+- [ ] 1.8 Оформить и отправить наверх в `nova/meta/rules` расхождения внутри набора: определение layered (`architecture.md` против `project-naming-and-setup.md` §1–4 и `project-deps-and-tests.md` §1) и путь фронтенда (`src/frontend/` против `web/` в правилах `typescript/`) — проверка: issue или MR в репозитории правил создан, ссылка записана в `local-project-layers.md`
 
 ## 2. Озеро, покрытие, материализация
 
