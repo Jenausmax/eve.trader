@@ -26,6 +26,32 @@ Modular-monolith станет правильным ответом, когда у
 граница данных со своим темпом обновления — например у индустрии. Это будет переезд с
 причиной, а не догадка сейчас.
 
+## Отклонение от раскладки набора правил
+
+Раскладка выше — **не** та, что показана в
+[`project-naming-and-setup.md`](project-naming-and-setup.md) §1–4, и это осознанно.
+
+Два `always: true` правила описывают layered по-разному:
+
+| Правило | Что называет слоями layered-проекта |
+|---|---|
+| [`architecture.md`](architecture.md) | `presentation → application → domain ← infrastructure` |
+| [`project-naming-and-setup.md`](project-naming-and-setup.md) §1–4, [`project-deps-and-tests.md`](project-deps-and-tests.md) §1 | `application/ feature/ database/ client/ models/ shared/ generation/ bots/` |
+
+Берём первую. Вторая — сервисной формы: `database/` подразумевает `DbContext`, которого
+в этом репозитории нет ни одного, а `models/` описан как «типы, пересекающие границы
+проектов», а не «вся счётная логика». Натянуть на неё жирный домен, который здесь несёт
+разметку событий и признаки, можно только соврав в названиях слоёв.
+
+Правила именования, глубины и запрета имён-помоек из `project-naming-and-setup.md`
+применяются полностью — отклонение касается только состава и путей слоёв.
+
+NetArchTest в `tests/architecture/` закрепляет таблицу зависимостей из `architecture.md`,
+а не из `project-deps-and-tests.md` §1: вторая описывает слои, которых у нас нет.
+
+Само расхождение — дефект набора правил, а не нашего проекта, и поднято наверх в
+`nova/meta/rules` (см. задачу 1.8 в `openspec/changes/add-market-observation-pipeline/tasks.md`).
+
 ## Слои и пути
 
 | Слой | Путь | Проекты |
@@ -33,7 +59,7 @@ Modular-monolith станет правильным ответом, когда у
 | presentation | `src/presentation/` | `EveTrader.Cli` — composition root, запуск и осмотр |
 | application | `src/application/` | `EveTrader.Application` — конвейер, сценарии, порты |
 | domain | `src/domain/` | `EveTrader.Domain` — типы и вся счётная логика |
-| infrastructure | `src/infrastructure/` | `EveTrader.Infrastructure.Esi`, `EveTrader.Infrastructure.Facts`, `EveTrader.Infrastructure.Sde` |
+| infrastructure | `src/infrastructure/` | `EveTrader.Infrastructure.Esi`, `EveTrader.Infrastructure.Archive`, `EveTrader.Infrastructure.Facts`, `EveTrader.Infrastructure.Sde` |
 
 Компании в имени нет — репозиторий не корпоративный, роль `<Company>.<App>` из
 [`project-naming-and-setup.md`](project-naming-and-setup.md) исполняет `EveTrader`.
@@ -85,3 +111,21 @@ infrastructure ───────────┘
 
 Правила EF помечены `always: true`, поэтому граница объявляется здесь явно. Отсутствие
 `DbContext` над рыночными фактами — не упущение и не долг, а требование.
+
+### Где разрешено считать в SQL
+
+Решение «логика в C#» принято ради отлаживаемости, и обойти его через SQL-агрегаты нельзя.
+Граница проходит **по потребителю результата, а не по сложности запроса**.
+
+| Потребитель | Где считается |
+|---|---|
+| признак, сигнал, обучающая выборка | **только** в домене на C#; хранилище делает отбор, проекцию, отсечение партиций |
+| отчёт оператору: покрытие, расход трафика, диагностика | агрегация средствами хранилища разрешена |
+
+Технически это два **разных порта** в application. Порт агрегатов недоступен домену и
+коду вычисления признаков — закрепляется тестом архитектуры, чтобы посчитать признак
+запросом было нельзя случайно.
+
+Причина именно такая: признак, посчитанный в SQL для обучения и в C# в бою, расходится —
+и расхождение выглядит на бэктесте как отличная модель, а в бою как случайная. Для отчёта
+оператору такого риска не существует.
