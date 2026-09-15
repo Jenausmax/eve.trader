@@ -1,0 +1,31 @@
+<Solution>
+  <Folder Name="/src/" />
+  <Folder Name="/src/application/">
+    <Project Path="src/application/EveTrader.Application/EveTrader.Application.csproj" />
+  </Folder>
+  <Folder Name="/src/build/">
+    <Project Path="src/build/EveTrader.Build.Tools/EveTrader.Build.Tools.csproj" />
+  </Folder>
+  <Folder Name="/src/domain/">
+    <Project Path="src/domain/EveTrader.Domain/EveTrader.Domain.csproj" />
+  </Folder>
+  <Folder Name="/src/infrastructure/">
+    <Project Path="src/infrastructure/EveTrader.Infrastructure.Archive/EveTrader.Infrastructure.Archive.csproj" />
+    <Project Path="src/infrastructure/EveTrader.Infrastructure.Esi/EveTrader.Infrastructure.Esi.csproj" />
+    <Project Path="src/infrastructure/EveTrader.Infrastructure.Facts/EveTrader.Infrastructure.Facts.csproj" />
+    <Project Path="src/infrastructure/EveTrader.Infrastructure.Sde/EveTrader.Infrastructure.Sde.csproj" />
+  </Folder>
+  <Folder Name="/src/presentation/">
+    <Project Path="src/presentation/EveTrader.Cli/EveTrader.Cli.csproj" />
+  </Folder>
+  <Folder Name="/tests/" />
+  <Folder Name="/tests/architecture/">
+    <Project Path="tests/architecture/EveTrader.Architecture.Tests/EveTrader.Architecture.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tests/integration/">
+    <Project Path="tests/integration/EveTrader.Application.Integration/EveTrader.Application.Integration.csproj" />
+  </Folder>
+  <Folder Name="/tests/unit/">
+    <Project Path="tests/unit/EveTrader.Application.Unit/EveTrader.Application.Unit.csproj" />
+  </Folder>
+</Solution>

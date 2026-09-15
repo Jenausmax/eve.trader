@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <PackageReference Include="NetArchTest.Rules" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\domain\EveTrader.Domain\EveTrader.Domain.csproj" />
+    <ProjectReference Include="..\..\..\src\application\EveTrader.Application\EveTrader.Application.csproj" />
+    <ProjectReference Include="..\..\..\src\infrastructure\EveTrader.Infrastructure.Esi\EveTrader.Infrastructure.Esi.csproj" />
+    <ProjectReference Include="..\..\..\src\infrastructure\EveTrader.Infrastructure.Facts\EveTrader.Infrastructure.Facts.csproj" />
+    <ProjectReference Include="..\..\..\src\infrastructure\EveTrader.Infrastructure.Archive\EveTrader.Infrastructure.Archive.csproj" />
+    <ProjectReference Include="..\..\..\src\infrastructure\EveTrader.Infrastructure.Sde\EveTrader.Infrastructure.Sde.csproj" />
+    <ProjectReference Include="..\..\..\src\presentation\EveTrader.Cli\EveTrader.Cli.csproj" />
+  </ItemGroup>
+
+</Project>

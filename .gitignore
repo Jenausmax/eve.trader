@@ -15,3 +15,11 @@ artifacts/
 # secrets
 *.env
 !*.env.example
+
+# test output
+TestResults/
+coverage*.xml
+coverage*.json
+
+# macos
+.DS_Store

@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\application\EveTrader.Application\EveTrader.Application.csproj" />
+    <ProjectReference Include="..\..\domain\EveTrader.Domain\EveTrader.Domain.csproj" />
+    <ProjectReference Include="..\..\infrastructure\EveTrader.Infrastructure.Esi\EveTrader.Infrastructure.Esi.csproj" />
+    <ProjectReference Include="..\..\infrastructure\EveTrader.Infrastructure.Facts\EveTrader.Infrastructure.Facts.csproj" />
+    <ProjectReference Include="..\..\infrastructure\EveTrader.Infrastructure.Archive\EveTrader.Infrastructure.Archive.csproj" />
+    <ProjectReference Include="..\..\infrastructure\EveTrader.Infrastructure.Sde\EveTrader.Infrastructure.Sde.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+</Project>

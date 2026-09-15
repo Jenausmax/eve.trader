@@ -1,0 +1,57 @@
+<Project>
+
+  <!--
+    Format-гейт из .agents/rules/process/build-verification.md.
+
+    Правило объявляет единственной командой верификации
+    `dotnet build EveTrader.slnx -c Debug` и требует, чтобы она включала проверку
+    форматирования. Проверка живёт здесь, а не в корневом Directory.Build.targets,
+    потому что её надо выполнить один раз на сборку решения, а корневой файл
+    импортируется каждым проектом.
+
+    Эскейпы для inner-loop (не для «готово»):
+      -p:DisableFormatOnBuild=true        пропустить проверку
+      -p:FormatOnBuildTreatAsWarning=true drift как warning, а не error
+  -->
+
+  <PropertyGroup>
+    <DisableFormatOnBuild Condition="'$(DisableFormatOnBuild)' == ''">false</DisableFormatOnBuild>
+    <FormatOnBuildTreatAsWarning Condition="'$(FormatOnBuildTreatAsWarning)' == ''">false</FormatOnBuildTreatAsWarning>
+    <FormatOnBuildSolution>$(MSBuildThisFileDirectory)../../../EveTrader.slnx</FormatOnBuildSolution>
+  </PropertyGroup>
+
+  <Target Name="VerifyFormatOnBuild"
+          AfterTargets="Build"
+          Condition="'$(DisableFormatOnBuild)' != 'true' And '$(EVETRADER_FORMAT_RUNNING)' != '1'">
+
+    <PropertyGroup>
+      <FormatOnBuildCommand>dotnet format "$(FormatOnBuildSolution)" --verify-no-changes --severity hidden --no-restore</FormatOnBuildCommand>
+    </PropertyGroup>
+
+    <Message Importance="normal" Text="[VerifyFormatOnBuild] $(FormatOnBuildCommand)" />
+
+    <!--
+      EVETRADER_FORMAT_RUNNING гасит рекурсию: dotnet format поднимает решение
+      заново, и без флага вложенная сборка вошла бы в этот же target.
+    -->
+    <Exec Command="$(FormatOnBuildCommand)"
+          EnvironmentVariables="EVETRADER_FORMAT_RUNNING=1"
+          ContinueOnError="true"
+          StandardOutputImportance="low"
+          StandardErrorImportance="low"
+          ConsoleToMsBuild="true">
+      <Output TaskParameter="ExitCode" PropertyName="FormatOnBuildExitCode" />
+      <Output TaskParameter="ConsoleOutput" PropertyName="FormatOnBuildOutput" />
+    </Exec>
+
+    <Warning Condition="'$(FormatOnBuildExitCode)' != '0' And '$(FormatOnBuildTreatAsWarning)' == 'true'"
+             Code="FORMAT001"
+             Text="[VerifyFormatOnBuild] Format drift detected. Run: dotnet format EveTrader.slnx --severity hidden%0A$(FormatOnBuildOutput)" />
+
+    <Error Condition="'$(FormatOnBuildExitCode)' != '0' And '$(FormatOnBuildTreatAsWarning)' != 'true'"
+           Code="FORMAT001"
+           Text="[VerifyFormatOnBuild] Format drift detected. Run: dotnet format EveTrader.slnx --severity hidden%0A$(FormatOnBuildOutput)" />
+
+  </Target>
+
+</Project>

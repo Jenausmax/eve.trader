@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\application\EveTrader.Application\EveTrader.Application.csproj" />
+    <ProjectReference Include="..\..\domain\EveTrader.Domain\EveTrader.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

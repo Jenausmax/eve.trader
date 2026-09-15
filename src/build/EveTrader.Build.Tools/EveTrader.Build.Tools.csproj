@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Проект существует ради одного target'а: он тянет format-проверку в граф
+    сборки решения. Кода не содержит и ссылок на себя не имеет — см.
+    EveTrader.Build.Tools.targets.
+  -->
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <Import Project="EveTrader.Build.Tools.targets" />
+
+</Project>

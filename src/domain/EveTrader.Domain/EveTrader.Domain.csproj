@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Запрет системных часов в домене — предварительное условие реплея: домен,
+    умеющий спросить «сейчас», невоспроизводим, и расхождение реплея с боевым
+    прогоном нельзя отличить от шума.
+
+    Проверяется анализатором, а не NetArchTest: тот смотрит на зависимости типов,
+    а DateTime в домене легален — незаконен DateTime.UtcNow.
+  -->
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AdditionalFiles Include="BannedSymbols.txt" />
+  </ItemGroup>
+
+</Project>

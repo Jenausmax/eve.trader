@@ -49,8 +49,8 @@ Modular-monolith станет правильным ответом, когда у
 NetArchTest в `tests/architecture/` закрепляет таблицу зависимостей из `architecture.md`,
 а не из `project-deps-and-tests.md` §1: вторая описывает слои, которых у нас нет.
 
-Само расхождение — дефект набора правил, а не нашего проекта, и поднято наверх в
-`nova/meta/rules` (см. задачу 1.8 в `openspec/changes/add-market-observation-pipeline/tasks.md`).
+Само расхождение — дефект набора правил, а не нашего проекта, и подлежит подъёму наверх
+в `nova/meta/rules` — см. §«Расхождения, поднимаемые наверх» ниже.
 
 ## Слои и пути
 
@@ -61,14 +61,28 @@ NetArchTest в `tests/architecture/` закрепляет таблицу зав�
 | domain | `src/domain/` | `EveTrader.Domain` — типы и вся счётная логика |
 | infrastructure | `src/infrastructure/` | `EveTrader.Infrastructure.Esi`, `EveTrader.Infrastructure.Archive`, `EveTrader.Infrastructure.Facts`, `EveTrader.Infrastructure.Sde` |
 
+Под `src/` лежит ещё один каталог, слоем **не** являющийся:
+
+| Каталог | Что | Почему не слой |
+|---|---|---|
+| `src/build/` | `EveTrader.Build.Tools` | Проект без кода. Существует ради target'а `VerifyFormatOnBuild`, который `process/build-verification.md` требует внутри единственной команды гейта. Target должен отработать один раз на сборку решения, поэтому ему нужен собственный проект в графе, а не корневой `Directory.Build.targets`, импортируемый каждым проектом. |
+
+`src/build/` не участвует в направлении ссылок: на него не ссылается никто, и он не
+ссылается ни на кого. Тест архитектуры знает о нём явно — слой, не объявленный здесь,
+роняет `LayerDependenciesShould.PointDownOnly`, чтобы новая папка верхнего уровня не
+заводилась по ходу.
+
 Компании в имени нет — репозиторий не корпоративный, роль `<Company>.<App>` из
 [`project-naming-and-setup.md`](project-naming-and-setup.md) исполняет `EveTrader`.
 Остальное правило имён действует полностью, включая запрет имён-помоек: слоя или
 проекта с именем `Shared`, `Common`, `Utils`, `Core` без квалификации в этом
 репозитории быть не может.
 
-Тесты — по [`project-deps-and-tests.md`](project-deps-and-tests.md):
-`tests/unit/`, `tests/integration/`, `tests/architecture/`.
+Тесты — `tests/unit/`, `tests/integration/`, `tests/architecture/`. Отличие от
+[`project-deps-and-tests.md`](project-deps-and-tests.md) §3: там `Architecture.Tests`
+живут внутри `tests/unit/`, здесь — отдельным каталогом. Причина простая: архитектурные
+тесты читают csproj-файлы с диска, а не только типы, и их отделение делает границу
+«проверка кода» / «проверка раскладки» видимой в дереве.
 
 ## Направление ссылок
 
@@ -129,3 +143,35 @@ infrastructure ───────────┘
 Причина именно такая: признак, посчитанный в SQL для обучения и в C# в бою, расходится —
 и расхождение выглядит на бэктесте как отличная модель, а в бою как случайная. Для отчёта
 оператору такого риска не существует.
+
+## Расхождения, поднимаемые наверх
+
+Оба пункта — расхождения **внутри** набора правил, а не между набором и этим
+репозиторием: два `always: true` файла отвечают на один вопрос по-разному, и исполнить
+можно только один. Чинятся в `nova/meta/rules`, здесь лишь зафиксированы, чтобы решение
+по месту не выглядело самодеятельностью.
+
+| # | Расхождение | Что говорит один файл | Что говорит другой | Что взято здесь |
+|---|---|---|---|---|
+| 1 | Состав слоёв layered-проекта | [`architecture.md`](architecture.md): `presentation → application → domain ← infrastructure` | [`project-naming-and-setup.md`](project-naming-and-setup.md) §1–4 и [`project-deps-and-tests.md`](project-deps-and-tests.md) §1: `application/ feature/ database/ client/ models/ shared/ generation/ bots/` | первое — см. §«Отклонение от раскладки набора правил» |
+| 2 | Путь фронтенда | [`project-naming-and-setup.md`](project-naming-and-setup.md) §4: `src/frontend/` | `typescript/react-and-components.md` и `typescript/workspace-and-i18n.md`: `web/` | `web/` — команды гейта в правилах фронтенда написаны литерально «из `web/`» и при другом пути не выполнятся |
+
+Ссылка на issue или MR: **не создана** — remote `rules` в этом клоне не настроен
+(см. [`../process/local-project.md`](../process/local-project.md) §«Обновление общего
+набора»). Задача `2.2` в
+[`bootstrap-solution-skeleton`](../../../openspec/changes/bootstrap-solution-skeleton/tasks.md)
+остаётся открытой до тех пор, пока ссылка не появится здесь.
+
+### Стычка анализаторов в тест-проектах
+
+Не расхождение правил между собой, но след того же свойства набора: `VSTHRD111`
+(скрытая severity, с автофиксом) требует явный `ConfigureAwait`, и
+`dotnet format --severity hidden` из гейта вписывает `ConfigureAwait(false)`
+автоматически — включая тела тестов. `xUnit1030` из мандатного тестового стека
+это запрещает: `ConfigureAwait(false)` в тесте обходит ограничитель параллелизма
+xUnit.
+
+Взято: `ConfigureAwait(true)` в тестах. Оба анализатора удовлетворены, ни одна
+severity не ослаблена, `.editorconfig` не тронут. Альтернатива — заглушить
+`VSTHRD111` на `tests/**`, но это правка severity, а она требует одобрения
+владельца (`analyzers.md` §«Hard rule»).
