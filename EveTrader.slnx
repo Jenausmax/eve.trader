@@ -24,8 +24,10 @@
   </Folder>
   <Folder Name="/tests/integration/">
     <Project Path="tests/integration/EveTrader.Application.Integration/EveTrader.Application.Integration.csproj" />
+    <Project Path="tests/integration/EveTrader.Infrastructure.Facts.Integration/EveTrader.Infrastructure.Facts.Integration.csproj" />
   </Folder>
   <Folder Name="/tests/unit/">
     <Project Path="tests/unit/EveTrader.Application.Unit/EveTrader.Application.Unit.csproj" />
+    <Project Path="tests/unit/EveTrader.Domain.Unit/EveTrader.Domain.Unit.csproj" />
   </Folder>
 </Solution>
