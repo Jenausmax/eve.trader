@@ -55,11 +55,11 @@ switch (options.Command)
                 client, everef, loggerFactory.CreateLogger<EveRefMarketHistoryArchive>());
 
             var import = new DailyHistoryImport(
-                writer, registry, TimeProvider.System, loggerFactory.CreateLogger<DailyHistoryImport>());
+                writer, registry, coverage, TimeProvider.System, loggerFactory.CreateLogger<DailyHistoryImport>());
 
             DailyHistoryImportReport report = await import.RunAsync(
                 archive,
-                new MarketHistoryScope(TimeRange.Between(options.From, options.To), [], [], options.KnownSince),
+                MarketHistoryScope.Fresh(TimeRange.Between(options.From, options.To)),
                 StaticDataVersion.From(options.StaticData),
                 cancellation.Token).ConfigureAwait(false);
 

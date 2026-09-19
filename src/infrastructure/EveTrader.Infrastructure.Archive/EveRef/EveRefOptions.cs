@@ -19,6 +19,15 @@ public sealed class EveRefOptions
     public int MaxParallelDownloads { get; init; } = 2;
 
     /// <summary>
+    /// Сколько раз повторить сутки при обрыве загрузки. На восьми тысячах файлов обрыв
+    /// не исключение, а норма, и ронять из-за него весь прогон нельзя.
+    /// </summary>
+    public int MaxAttempts { get; init; } = 4;
+
+    /// <summary>Пауза перед повтором; удваивается с каждой попыткой.</summary>
+    public TimeSpan RetryDelay { get; init; } = TimeSpan.FromSeconds(2);
+
+    /// <summary>
     /// Чем система представляется источнику. Третьи стороны в EVE обязаны называть себя
     /// и оставлять контакт, иначе источник вправе не отвечать.
     /// </summary>

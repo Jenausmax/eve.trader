@@ -14,25 +14,51 @@ namespace EveTrader.Infrastructure.Facts.Lake;
 /// </summary>
 public sealed class ParquetFactWriter(LakeLayout layout, ParquetCoverageLog coverage) : IFactWriter
 {
-    public async Task<FactWriteOutcome> WriteAsync(
+    public Task<FactWriteOutcome> WriteAsync(
         FactBatch batch,
+        IReadOnlyList<CoverageEntry> entries,
+        CancellationToken cancellationToken) =>
+        WriteAllAsync([batch], entries, cancellationToken);
+
+    public async Task<FactWriteOutcome> WriteAllAsync(
+        IReadOnlyList<FactBatch> batches,
         IReadOnlyList<CoverageEntry> entries,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(batch);
+        ArgumentNullException.ThrowIfNull(batches);
 
-        DateOnly observedDate = Validate(batch, entries);
+        if (batches.Count == 0)
+        {
+            return await WriteCoverageOnlyAsync(entries, cancellationToken).ConfigureAwait(false);
+        }
 
-        if (coverage.IsConfirmed(observedDate, batch.Observation))
+        DateOnly observedDate = Validate(batches[0], entries);
+
+        foreach (FactBatch batch in batches)
+        {
+            _ = Validate(batch, entries);
+
+            if (batch.Observation != batches[0].Observation)
+            {
+                throw new ArgumentException("Все порции принадлежат одному наблюдению", nameof(batches));
+            }
+        }
+
+        if (coverage.IsConfirmed(observedDate, batches[0].Observation))
         {
             return FactWriteOutcome.AlreadyPresent;
         }
 
-        var file = layout.FileFor(batch.Set, batch.ObservedDate, batch.Region, batch.Observation);
+        // Сначала все данные, покрытие последним: прерывание посередине оставляет
+        // неподтверждённые файлы, а их читатель не видит и уборка сметёт.
+        foreach (FactBatch batch in batches)
+        {
+            var file = layout.FileFor(batch.Set, batch.ObservedDate, batch.Region, batch.Observation);
 
-        await AtomicParquet
-            .WriteAsync(file, FactFileSchema.For(batch.Columns), FactFileSchema.Rows(batch), cancellationToken)
-            .ConfigureAwait(false);
+            await AtomicParquet
+                .WriteAsync(file, FactFileSchema.For(batch.Columns), FactFileSchema.Rows(batch), cancellationToken)
+                .ConfigureAwait(false);
+        }
 
         await coverage.AppendAsync(entries, cancellationToken).ConfigureAwait(false);
 

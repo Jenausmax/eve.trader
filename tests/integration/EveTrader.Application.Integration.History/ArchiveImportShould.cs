@@ -34,7 +34,7 @@ public sealed class ArchiveImportShould
         }
 
         DailyHistoryImportReport report = await fixture
-            .RunAsync(fixture.Archive(), January, null, token)
+            .RunAsync(fixture.Archive(), January, token)
             .ConfigureAwait(true);
 
         report.DaysWritten.ShouldBe(3);
@@ -58,12 +58,12 @@ public sealed class ArchiveImportShould
 
         fixture.Stub.Days[Day(1)] = (Csv.Of((Day(1), 10000002, 34, 100, At(2))), At(2));
 
-        _ = await fixture.RunAsync(fixture.Archive(), January, null, token).ConfigureAwait(true);
+        _ = await fixture.RunAsync(fixture.Archive(), January, token).ConfigureAwait(true);
 
         fixture.Stub.BodiesServed.ShouldBe(1);
 
-        // Второй прогон знает, когда грузил в прошлый раз, и спрашивает условно.
-        _ = await fixture.RunAsync(fixture.Archive(), January, At(3), token).ConfigureAwait(true);
+        // Второй прогон сам выясняет из покрытия, когда грузил эти сутки, и спрашивает условно.
+        _ = await fixture.RunAsync(fixture.Archive(), January, token).ConfigureAwait(true);
 
         fixture.Stub.BodiesServed.ShouldBe(1, "тело файла не должно приезжать повторно");
         fixture.Stub.NotModifiedServed.ShouldBe(1);
@@ -80,7 +80,7 @@ public sealed class ArchiveImportShould
             fixture.Stub.Days[Day(day)] = (Csv.Of((Day(day), 10000002, 34, day, At(day + 1))), At(day + 1));
         }
 
-        _ = await fixture.RunAsync(fixture.Archive(parallelism: 2), January, null, token).ConfigureAwait(true);
+        _ = await fixture.RunAsync(fixture.Archive(parallelism: 2), January, token).ConfigureAwait(true);
 
         fixture.Stub.PeakParallelism.ShouldBeLessThanOrEqualTo(2);
         fixture.Stub.BodiesServed.ShouldBe(12);
@@ -94,15 +94,16 @@ public sealed class ArchiveImportShould
 
         // Первая публикация суток: известно, что знал источник на 2 января.
         fixture.Stub.Days[Day(1)] = (Csv.Of((Day(1), 10000002, 34, 100, At(2))), At(2));
-        _ = await fixture.RunAsync(fixture.Archive(), January, null, token).ConfigureAwait(true);
+        _ = await fixture.RunAsync(fixture.Archive(), January, token).ConfigureAwait(true);
 
         // Источник дополнил те же сутки задним числом: файл переписан, строка уточнена.
+        fixture.Clock.Now = At(10);
         fixture.Stub.Days[Day(1)] = (
             Csv.Of((Day(1), 10000002, 34, 100, At(2)), (Day(1), 10000002, 34, 175, At(9))),
             At(9));
 
         DailyHistoryImportReport second = await fixture
-            .RunAsync(fixture.Archive(), January, At(3), token)
+            .RunAsync(fixture.Archive(), January, token)
             .ConfigureAwait(true);
 
         second.DaysWritten.ShouldBe(1);
@@ -131,13 +132,18 @@ public sealed class ArchiveImportShould
 
         fixture.Stub.Days[Day(1)] = (Csv.Of((Day(1), 10000002, 34, 100, At(2))), At(2));
 
-        _ = await fixture.RunAsync(fixture.Archive(), January, null, token).ConfigureAwait(true);
+        _ = await fixture.RunAsync(fixture.Archive(), January, token).ConfigureAwait(true);
         DailyHistoryImportReport again = await fixture
-            .RunAsync(fixture.Archive(), January, null, token)
+            .RunAsync(fixture.Archive(), January, token)
             .ConfigureAwait(true);
 
         again.DaysWritten.ShouldBe(0);
-        again.DaysAlreadyPresent.ShouldBe(1);
+
+        // Файл не менялся, поэтому источник ответил 304 и тела не прислал: повторная
+        // загрузка не происходит вовсе, а не отбрасывается после скачивания.
+        again.DaysUnchanged.ShouldBe(1);
+        fixture.Stub.NotModifiedServed.ShouldBe(1);
+        fixture.Stub.BodiesServed.ShouldBe(1);
 
         List<FactRow> rows = await fixture.Rows
             .ReadAsync(FactSet.HistoryDaily, January, null, token)
@@ -156,7 +162,7 @@ public sealed class ArchiveImportShould
         fixture.Stub.Days[Day(1)] = (Csv.Of((Day(1), 10000002, 34, 1, At(2))), At(2));
         fixture.Stub.Days[Day(2)] = (Csv.Of((Day(2), 10000043, 34, 2, At(3))), At(3));
 
-        _ = await fixture.RunAsync(fixture.Archive(), January, null, token).ConfigureAwait(true);
+        _ = await fixture.RunAsync(fixture.Archive(), January, token).ConfigureAwait(true);
 
         IReadOnlyList<MaterializedInterval> intervals = await fixture.Registry
             .ReadAsync(FactSet.HistoryDaily, token)
@@ -174,8 +180,58 @@ public sealed class ArchiveImportShould
 
         fixture.Stub.Days[Day(1)] = (Csv.Of((Day(1), 10000002, 34, 1, At(2))), At(2));
 
-        _ = await fixture.RunAsync(fixture.Archive(), January, null, token).ConfigureAwait(true);
+        _ = await fixture.RunAsync(fixture.Archive(), January, token).ConfigureAwait(true);
 
         fixture.Stub.Requests.Count(static path => path.EndsWith('/')).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task RecoverFromATruncatedDownloadInsteadOfAbortingTheRun()
+    {
+        using var fixture = new ImportFixture();
+        CancellationToken token = TestContext.Current.CancellationToken;
+
+        for (var day = 1; day <= 3; day++)
+        {
+            fixture.Stub.Days[Day(day)] = (Csv.Of((Day(day), 10000002, 34, day, At(day + 1))), At(day + 1));
+        }
+
+        // Вторые сутки обрываются дважды подряд, потом приходят целыми.
+        fixture.Stub.TruncateAttempts[Day(2)] = 2;
+
+        DailyHistoryImportReport report = await fixture
+            .RunAsync(fixture.Archive(), January, token)
+            .ConfigureAwait(true);
+
+        fixture.Stub.TruncatedServed.ShouldBe(2);
+        report.DaysWritten.ShouldBe(3, "оборванные сутки забираются повтором, а не теряются");
+    }
+
+    [Fact]
+    public async Task SkipADayThatNeverArrivesAndKeepGoing()
+    {
+        using var fixture = new ImportFixture();
+        CancellationToken token = TestContext.Current.CancellationToken;
+
+        for (var day = 1; day <= 3; day++)
+        {
+            fixture.Stub.Days[Day(day)] = (Csv.Of((Day(day), 10000002, 34, day, At(day + 1))), At(day + 1));
+        }
+
+        // Эти сутки не придут никогда — попыток не хватит.
+        fixture.Stub.TruncateAttempts[Day(2)] = 100;
+
+        DailyHistoryImportReport report = await fixture
+            .RunAsync(fixture.Archive(), January, token)
+            .ConfigureAwait(true);
+
+        // Прогон на восемь тысяч файлов не роняется из-за одних суток.
+        report.DaysWritten.ShouldBe(2);
+
+        // Пропущенные сутки остались без покрытия, то есть восполнимы следующим прогоном.
+        IReadOnlyList<Domain.Coverage.CoverageEntry> coverage =
+            await fixture.Coverage.ReadAsync(January, [], token).ConfigureAwait(true);
+
+        coverage.ShouldNotContain(static entry => entry.Collected.From == At(2));
     }
 }

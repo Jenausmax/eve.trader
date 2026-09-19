@@ -41,13 +41,13 @@ public sealed class UnifiedIntakeShould
 
         // Архив отдаёт 1 января, живой ESI — 2 января. Набор один и тот же.
         fixture.Stub.Days[Day(1)] = (Csv.Of((Day(1), 10000002, 34, 100, At(2))), At(2));
-        _ = await fixture.RunAsync(fixture.Archive(), January, null, token).ConfigureAwait(true);
+        _ = await fixture.RunAsync(fixture.Archive(), January, token).ConfigureAwait(true);
 
         var esi = new StubEsi();
         esi.History[(10000002, 34)] = [(Day(2), 250)];
         _ = await fixture.Import.RunAsync(
             Esi(esi),
-            new MarketHistoryScope(January, [RegionId.From(10000002)], [34], null),
+            new MarketHistoryScope(January, [RegionId.From(10000002)], [34], new Dictionary<DateOnly, DateTimeOffset>()),
             StaticDataVersion.From("sde-test"),
             token).ConfigureAwait(true);
 
@@ -76,13 +76,13 @@ public sealed class UnifiedIntakeShould
         CancellationToken token = TestContext.Current.CancellationToken;
 
         fixture.Stub.Days[Day(1)] = (Csv.Of((Day(1), 10000002, 34, 100, At(2))), At(2));
-        _ = await fixture.RunAsync(fixture.Archive(), January, null, token).ConfigureAwait(true);
+        _ = await fixture.RunAsync(fixture.Archive(), January, token).ConfigureAwait(true);
 
         var esi = new StubEsi();
         esi.History[(10000002, 34)] = [(Day(2), 250)];
         _ = await fixture.Import.RunAsync(
             Esi(esi),
-            new MarketHistoryScope(January, [RegionId.From(10000002)], [34], null),
+            new MarketHistoryScope(January, [RegionId.From(10000002)], [34], new Dictionary<DateOnly, DateTimeOffset>()),
             StaticDataVersion.From("sde-test"),
             token).ConfigureAwait(true);
 
@@ -104,7 +104,7 @@ public sealed class UnifiedIntakeShould
 
         _ = await Should.ThrowAsync<ArgumentException>(() => fixture.Import.RunAsync(
             Esi(esi),
-            new MarketHistoryScope(January, [], [], null),
+            new MarketHistoryScope(January, [], [], new Dictionary<DateOnly, DateTimeOffset>()),
             StaticDataVersion.From("sde-test"),
             TestContext.Current.CancellationToken)).ConfigureAwait(true);
     }
@@ -120,7 +120,7 @@ public sealed class UnifiedIntakeShould
 
         _ = await fixture.Import.RunAsync(
             Esi(esi),
-            new MarketHistoryScope(January, [RegionId.From(10000002)], [34], null),
+            new MarketHistoryScope(January, [RegionId.From(10000002)], [34], new Dictionary<DateOnly, DateTimeOffset>()),
             StaticDataVersion.From("sde-test"),
             token).ConfigureAwait(true);
 

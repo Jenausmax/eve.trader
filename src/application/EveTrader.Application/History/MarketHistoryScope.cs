@@ -10,12 +10,26 @@ namespace EveTrader.Application.History;
 /// <param name="Within">Интервал рыночных дат.</param>
 /// <param name="Regions">Регионы; пустой набор — все, какие даёт источник.</param>
 /// <param name="Types">Типы; пустой набор — все, какие даёт источник.</param>
-/// <param name="KnownSince">
-/// Брать только то, что источник узнал позже этого момента. Так досинхронизация не
-/// переписывает уже имеющееся: строка, известная источнику раньше, у нас уже есть.
+/// <param name="AlreadyLoaded">
+/// Сутки, которые у нас уже есть, и момент их загрузки.
+///
+/// Знание посуточное, а не одним порогом на прогон, и это принципиально. Источник
+/// правит отдельные сутки задним числом, поэтому «загружено ли» — свойство суток, а не
+/// прогона. Отсюда обе выгоды сразу: условный запрос по каждым суткам не тянет
+/// неизменившийся файл вовсе, а строки, которые источник узнал раньше нашей загрузки
+/// этих суток, не переписываются.
 /// </param>
 public sealed record MarketHistoryScope(
     TimeRange Within,
     IReadOnlyList<RegionId> Regions,
     IReadOnlyList<int> Types,
-    DateTimeOffset? KnownSince);
+    IReadOnlyDictionary<DateOnly, DateTimeOffset> AlreadyLoaded)
+{
+    /// <summary>Охват без ничего загруженного — первый прогон.</summary>
+    public static MarketHistoryScope Fresh(TimeRange within) =>
+        new(within, [], [], new Dictionary<DateOnly, DateTimeOffset>());
+
+    /// <summary>Когда эти сутки загружались; <see langword="null" />, если ещё нет.</summary>
+    public DateTimeOffset? LoadedAt(DateOnly day) =>
+        AlreadyLoaded.TryGetValue(day, out DateTimeOffset at) ? at : null;
+}

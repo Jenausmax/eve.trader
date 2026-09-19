@@ -29,6 +29,14 @@ internal sealed class StubArchive : HttpMessageHandler
 
     public int PeakParallelism { get; private set; }
 
+    /// <summary>
+    /// Сколько первых попыток по суткам оборвать на середине тела. Так выглядит
+    /// настоящий разрыв соединения: заголовки пришли, тела не хватило.
+    /// </summary>
+    public Dictionary<DateOnly, int> TruncateAttempts { get; } = [];
+
+    public int TruncatedServed { get; private set; }
+
     /// <summary>Задержка ответа: без неё параллелизм не измерить — запросы не пересекутся.</summary>
     public TimeSpan Latency { get; set; } = TimeSpan.FromMilliseconds(40);
 
@@ -98,12 +106,31 @@ internal sealed class StubArchive : HttpMessageHandler
             return new HttpResponseMessage(HttpStatusCode.NotModified);
         }
 
+        var body = Compress(file.Csv);
+
         lock (guard)
         {
+            if (TruncateAttempts.TryGetValue(day, out var left) && left > 0)
+            {
+                TruncateAttempts[day] = left - 1;
+                TruncatedServed++;
+
+                // Тело обрезано, но Content-Length объявлен полным — ровно так выглядит
+                // разрыв соединения на середине загрузки.
+                var truncated = new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new ByteArrayContent(body[..(body.Length / 2)]),
+                };
+                truncated.Content.Headers.ContentLength = body.Length;
+                truncated.Content.Headers.LastModified = file.LastModified;
+
+                return truncated;
+            }
+
             BodiesServed++;
         }
 
-        var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(Compress(file.Csv)) };
+        var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(body) };
         response.Content.Headers.LastModified = file.LastModified;
 
         return response;

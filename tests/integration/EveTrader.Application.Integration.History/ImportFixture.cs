@@ -22,9 +22,13 @@ internal sealed class ImportFixture : IDisposable
         Registry = new ParquetMaterializationRegistry(Layout);
         Rows = new DuckDbFactRowReader(Layout);
 
+        Clock = new FakeClock(new DateTimeOffset(2026, 1, 2, 0, 0, 0, TimeSpan.Zero));
+
         Import = new DailyHistoryImport(
-            Writer, Registry, TimeProvider.System, NullLogger<DailyHistoryImport>.Instance);
+            Writer, Registry, Coverage, Clock, NullLogger<DailyHistoryImport>.Instance);
     }
+
+    public FakeClock Clock { get; }
 
     public string Root { get; }
 
@@ -58,11 +62,10 @@ internal sealed class ImportFixture : IDisposable
     public Task<DailyHistoryImportReport> RunAsync(
         IMarketHistorySource source,
         TimeRange within,
-        DateTimeOffset? knownSince,
         CancellationToken cancellationToken) =>
         Import.RunAsync(
             source,
-            new MarketHistoryScope(within, [], [], knownSince),
+            MarketHistoryScope.Fresh(within),
             StaticDataVersion.From("sde-test"),
             cancellationToken);
 

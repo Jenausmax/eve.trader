@@ -17,6 +17,7 @@ namespace EveTrader.Application.History;
 public sealed class DailyHistoryImport(
     IFactWriter writer,
     IMaterializationRegistry registry,
+    ICoverageLog coverage,
     TimeProvider clock,
     ILogger<DailyHistoryImport> logger)
 {
@@ -29,20 +30,31 @@ public sealed class DailyHistoryImport(
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(scope);
 
+        // Что у нас уже есть — вопрос к журналу покрытия, а не к вызывающему. Иначе
+        // перезапуск скачивал бы заново всё, что уже лежит, и «повторной загрузки не
+        // происходит» держалось бы на дисциплине вызова.
+        MarketHistoryScope resolved = scope with
+        {
+            AlreadyLoaded = await LoadedDaysAsync(scope.Within, cancellationToken).ConfigureAwait(false),
+        };
+
         var written = 0;
         var alreadyPresent = 0;
+        var seen = new HashSet<DateOnly>();
         long rows = 0;
         var regions = new HashSet<RegionId>();
         var types = new HashSet<int>();
         var loadedDays = new List<DateOnly>();
 
         await foreach (MarketHistoryObservation observation in
-            source.ObserveAsync(scope, cancellationToken).ConfigureAwait(false))
+            source.ObserveAsync(resolved, cancellationToken).ConfigureAwait(false))
         {
             if (observation.Rows.Count == 0)
             {
                 continue;
             }
+
+            _ = seen.Add(observation.MarketDate);
 
             FactBatch batch = DailyHistoryFacts.ToBatch(
                 observation.Observation, observation.MarketDate, observation.Rows, staticData);
@@ -79,11 +91,44 @@ public sealed class DailyHistoryImport(
 
         if (loadedDays.Count > 0)
         {
-            await RecordAsync(loadedDays, regions, source.Name, cancellationToken).ConfigureAwait(false);
+            await MaterializationRecord
+                .OfDaysAsync(registry, loadedDays, regions, source.Name, clock.GetUtcNow(), cancellationToken)
+                .ConfigureAwait(false);
         }
 
+        // Сутки, которые у нас были и которых источник не отдал: с прошлой загрузки они
+        // не менялись, и условный запрос не потянул тела.
+        var unchanged = resolved.AlreadyLoaded.Keys.Count(day => !seen.Contains(day));
+
         return new DailyHistoryImportReport(
-            source.Name, written, alreadyPresent, 0, rows, regions.Count, types.Count);
+            source.Name, written, alreadyPresent, unchanged, rows, regions.Count, types.Count);
+    }
+
+    /// <summary>
+    /// Когда какие сутки загружались, по журналу покрытия. Знание посуточное: источник
+    /// правит отдельные сутки задним числом, и один порог на прогон тут соврал бы.
+    /// </summary>
+    public async Task<IReadOnlyDictionary<DateOnly, DateTimeOffset>> LoadedDaysAsync(
+        TimeRange within,
+        CancellationToken cancellationToken)
+    {
+        IReadOnlyList<CoverageEntry> entries = await coverage
+            .ReadAsync(within, [], cancellationToken)
+            .ConfigureAwait(false);
+
+        var loaded = new Dictionary<DateOnly, DateTimeOffset>();
+
+        foreach (CoverageEntry entry in entries)
+        {
+            var day = DateOnly.FromDateTime(entry.Collected.From.UtcDateTime);
+
+            if (!loaded.TryGetValue(day, out DateTimeOffset known) || entry.KnownAt > known)
+            {
+                loaded[day] = entry.KnownAt;
+            }
+        }
+
+        return loaded;
     }
 
     /// <summary>
@@ -119,22 +164,5 @@ public sealed class DailyHistoryImport(
         }
 
         return entries;
-    }
-
-    private async Task RecordAsync(
-        IReadOnlyList<DateOnly> days,
-        IReadOnlyCollection<RegionId> regions,
-        string source,
-        CancellationToken cancellationToken)
-    {
-        DateOnly earliest = days.Min();
-        DateOnly latest = days.Max();
-
-        var from = new DateTimeOffset(earliest.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
-        DateTimeOffset to = new DateTimeOffset(latest.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero).AddDays(1);
-
-        await registry
-            .RecordAsync(FactSet.HistoryDaily, TimeRange.Between(from, to), regions, source, clock.GetUtcNow(), cancellationToken)
-            .ConfigureAwait(false);
     }
 }

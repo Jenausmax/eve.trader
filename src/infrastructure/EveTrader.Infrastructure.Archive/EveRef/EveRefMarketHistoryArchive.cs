@@ -43,7 +43,12 @@ public sealed partial class EveRefMarketHistoryArchive(
         var channel = Channel.CreateBounded<MarketHistoryObservation>(
             new BoundedChannelOptions(options.MaxParallelDownloads * 2) { SingleReader = true });
 
-        Task producer = ProduceAsync(channel.Writer, days, scope, cancellationToken);
+        Task producer = DayPump.RunAsync(
+            channel.Writer,
+            days,
+            options.MaxParallelDownloads,
+            (day, token) => FetchDayAsync(day, scope, token),
+            cancellationToken);
 
         await foreach (MarketHistoryObservation observation in
             channel.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
@@ -94,10 +99,57 @@ public sealed partial class EveRefMarketHistoryArchive(
     }
 
     /// <summary>
-    /// Скачивает и разбирает одни сутки. Возвращает <see langword="null" />, если
-    /// источник ответил «не изменилось» — тела в таком ответе нет, и трафик не потрачен.
+    /// Скачивает и разбирает одни сутки, повторяя при обрыве. Возвращает
+    /// <see langword="null" />, если источник ответил «не изменилось» либо суток не
+    /// публикует.
+    ///
+    /// Исчерпав попытки, метод не бросает, а возвращает <see langword="null" />: одни
+    /// несостоявшиеся сутки не повод ронять прогон на восемь тысяч файлов. Пропущенные
+    /// сутки остаются без записи покрытия, а значит покрытие честно покажет их как
+    /// восполнимые — следующий прогон их и заберёт.
     /// </summary>
     public async Task<MarketHistoryObservation?> FetchDayAsync(
+        DateOnly day,
+        MarketHistoryScope scope,
+        CancellationToken cancellationToken)
+    {
+        TimeSpan delay = options.RetryDelay;
+
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                return await FetchAttemptAsync(day, scope, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception failure) when (attempt < options.MaxAttempts && IsTransient(failure))
+            {
+                logger.LogWarning(
+                    failure, "Сутки {Day}: попытка {Attempt} не удалась, повтор через {Delay}", day, attempt, delay);
+
+                await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+                delay *= 2;
+            }
+            catch (Exception failure) when (IsTransient(failure))
+            {
+                logger.LogError(failure, "Сутки {Day} пропущены после {Attempts} попыток", day, options.MaxAttempts);
+
+                return null;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Обрыв загрузки, таймаут и порча архива — всё это поводы повторить. Ошибка разбора
+    /// повтором не лечится: формат файла от этого не изменится.
+    /// </summary>
+    public static bool IsTransient(Exception failure) =>
+        failure is HttpRequestException or IOException or TaskCanceledException;
+
+    /// <summary>
+    /// Одна попытка без повтора. Публична намеренно: повтор и одна попытка — разные
+    /// вещи, и проверять их порознь честнее, чем через счётчик обрывов.
+    /// </summary>
+    public async Task<MarketHistoryObservation?> FetchAttemptAsync(
         DateOnly day,
         MarketHistoryScope scope,
         CancellationToken cancellationToken)
@@ -108,7 +160,9 @@ public sealed partial class EveRefMarketHistoryArchive(
 
         using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(path, UriKind.Relative));
 
-        if (scope.KnownSince is { } since)
+        DateTimeOffset? loadedAt = scope.LoadedAt(day);
+
+        if (loadedAt is { } since)
         {
             request.Headers.IfModifiedSince = since;
         }
@@ -133,10 +187,22 @@ public sealed partial class EveRefMarketHistoryArchive(
 
         DateTimeOffset lastModified = response.Content.Headers.LastModified ?? DateTimeOffset.UnixEpoch;
 
-        await using Stream compressed = await response.Content
-            .ReadAsStreamAsync(cancellationToken)
-            .ConfigureAwait(false);
+        // Файл скачивается целиком, и только потом распаковывается.
+        //
+        // Распаковка прямо из сокета выглядит экономнее, но обрыв соединения приходит в
+        // ней не сетевой ошибкой, которую можно повторить, а порчей архива: BZip2 падает
+        // на «end of compressed stream», и повторять уже нечего — поток проглочен. Файл
+        // здесь меньше мегабайта, так что буфер ничего не стоит, зато обрыв виден как
+        // обрыв и чинится повтором.
+        var body = await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
 
+        if (response.Content.Headers.ContentLength is { } declared && body.LongLength != declared)
+        {
+            throw new EndOfStreamException(
+                $"Сутки {day:yyyy-MM-dd}: источник объявил {declared} байт, получено {body.LongLength}");
+        }
+
+        using var compressed = new MemoryStream(body, writable: false);
         await using var decompressed = new BZip2InputStream(compressed);
         using var reader = new StreamReader(decompressed);
 
@@ -160,7 +226,7 @@ public sealed partial class EveRefMarketHistoryArchive(
 
             // Строка, которую источник узнал раньше нашей прошлой загрузки, у нас уже есть.
             // Так досинхронизация дописывает только новое, не удваивая прежнее.
-            if (scope.KnownSince is { } known && row.KnownAt <= known)
+            if (loadedAt is { } known && row.KnownAt <= known)
             {
                 continue;
             }
@@ -181,38 +247,5 @@ public sealed partial class EveRefMarketHistoryArchive(
             string.Create(CultureInfo.InvariantCulture, $"everef-history-{day:yyyy-MM-dd}-{lastModified:yyyyMMddTHHmmssZ}"));
 
         return new MarketHistoryObservation(day, observation, rows, TimeSpan.FromDays(1), [.. regions.Order()]);
-    }
-
-    private async Task ProduceAsync(
-        ChannelWriter<MarketHistoryObservation> writer,
-        IReadOnlyList<DateOnly> days,
-        MarketHistoryScope scope,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            await Parallel.ForEachAsync(
-                days,
-                new ParallelOptions
-                {
-                    MaxDegreeOfParallelism = options.MaxParallelDownloads,
-                    CancellationToken = cancellationToken,
-                },
-                async (day, token) =>
-                {
-                    MarketHistoryObservation? observation = await FetchDayAsync(day, scope, token).ConfigureAwait(false);
-
-                    if (observation is not null)
-                    {
-                        await writer.WriteAsync(observation, token).ConfigureAwait(false);
-                    }
-                }).ConfigureAwait(false);
-
-            _ = writer.TryComplete();
-        }
-        catch (Exception exception)
-        {
-            _ = writer.TryComplete(exception);
-        }
     }
 }
