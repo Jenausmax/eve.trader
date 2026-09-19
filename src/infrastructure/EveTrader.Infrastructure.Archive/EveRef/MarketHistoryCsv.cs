@@ -61,7 +61,18 @@ public static class MarketHistoryCsv
                 continue;
             }
 
-            yield return Parse(line.Split(','), columns, knownAtFallback);
+            MarketHistoryRow row;
+
+            try
+            {
+                row = Parse(line.Split(','), columns, knownAtFallback);
+            }
+            catch (Exception failure) when (failure is FormatException or IndexOutOfRangeException or OverflowException)
+            {
+                throw new MarketHistoryFormatException($"Строка не разобрана: {line}", failure);
+            }
+
+            yield return row;
         }
     }
 
@@ -84,8 +95,36 @@ public static class MarketHistoryCsv
 
         return missing.Count == 0
             ? columns
-            : throw new InvalidOperationException(
+            : throw new MarketHistoryFormatException(
                 $"В заголовке CSV нет колонок {string.Join(", ", missing.Select(name => $"'{name}'"))}: {header}");
+    }
+
+    /// <summary>
+    /// Время получения строки.
+    ///
+    /// Колонка бывает отсутствующей (поколения до 2022 года) и присутствующей, но
+    /// пустой: в файлах середины 2020 года таких строк сотни на сутки. Оба случая
+    /// означают одно — источник не сказал, когда узнал строку, — и оба сводятся к
+    /// времени изменения файла как честной верхней оценке.
+    /// </summary>
+    public static DateTimeOffset KnownAt(
+        string[] fields,
+        IReadOnlyDictionary<string, int> columns,
+        DateTimeOffset fallback)
+    {
+        ArgumentNullException.ThrowIfNull(fields);
+        ArgumentNullException.ThrowIfNull(columns);
+
+        if (!columns.TryGetValue(HttpLastModified, out var at) || at >= fields.Length)
+        {
+            return fallback;
+        }
+
+        var value = fields[at];
+
+        return string.IsNullOrWhiteSpace(value)
+            ? fallback
+            : DateTimeOffset.Parse(value, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal);
     }
 
     public static MarketHistoryRow Parse(
@@ -105,8 +144,6 @@ public static class MarketHistoryCsv
             decimal.Parse(fields[columns[Lowest]], CultureInfo.InvariantCulture),
             long.Parse(fields[columns[OrderCount]], CultureInfo.InvariantCulture),
             long.Parse(fields[columns[Volume]], CultureInfo.InvariantCulture),
-            columns.TryGetValue(HttpLastModified, out var knownAt)
-                ? DateTimeOffset.Parse(fields[knownAt], CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal)
-                : knownAtFallback);
+            KnownAt(fields, columns, knownAtFallback));
     }
 }

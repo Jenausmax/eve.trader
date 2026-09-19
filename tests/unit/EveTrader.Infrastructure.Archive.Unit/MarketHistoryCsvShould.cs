@@ -95,6 +95,45 @@ public sealed class MarketHistoryCsvShould
     }
 
     [Fact]
+    public async Task FallBackToFileTimeWhenTheReceiptTimeIsBlank()
+    {
+        // Пятое поколение формата: колонка есть, значение пустое. В файлах середины
+        // 2020 года таких строк сотни на сутки, и одна из них роняла весь прогон.
+        var csv = """
+            average,date,highest,lowest,order_count,volume,region_id,type_id,http_last_modified
+            10.5,2020-06-18,12,9,7,1000,10000002,34,
+            10.5,2020-06-18,12,9,7,2000,10000002,35,2020-06-19T11:06:34Z
+
+            """;
+
+        List<MarketHistoryRow> rows = await ReadAsync(csv, TestContext.Current.CancellationToken).ConfigureAwait(true);
+
+        rows.Count.ShouldBe(2);
+
+        // Пустое значение означает то же, что отсутствующая колонка: источник не сказал.
+        rows[0].KnownAt.ShouldBe(Fallback);
+        rows[1].KnownAt.ShouldBe(new DateTimeOffset(2020, 6, 19, 11, 6, 34, TimeSpan.Zero));
+    }
+
+    [Fact]
+    public async Task ReportAnUnparseableRowAsAFormatDefectNotAsACrash()
+    {
+        var csv = """
+            average,date,highest,lowest,order_count,volume,region_id,type_id,http_last_modified
+            10.5,2026-01-15,12,9,7,не-число,10000002,34,2026-01-16T11:06:34Z
+
+            """;
+
+        MarketHistoryFormatException rejected = await Should
+            .ThrowAsync<MarketHistoryFormatException>(() => ReadAsync(csv, TestContext.Current.CancellationToken))
+            .ConfigureAwait(true);
+
+        // Тип ошибки — то, по чему импорт отличает дефект данных от дефекта кода:
+        // первый пропускает сутки, второй обязан ронять прогон громко.
+        rejected.Message.ShouldContain("не-число");
+    }
+
+    [Fact]
     public async Task RefuseAHeaderWithoutTheColumnsAFactNeeds()
     {
         var csv = """
@@ -102,8 +141,8 @@ public sealed class MarketHistoryCsvShould
 
             """;
 
-        InvalidOperationException rejected = await Should
-            .ThrowAsync<InvalidOperationException>(() => ReadAsync(csv, TestContext.Current.CancellationToken))
+        MarketHistoryFormatException rejected = await Should
+            .ThrowAsync<MarketHistoryFormatException>(() => ReadAsync(csv, TestContext.Current.CancellationToken))
             .ConfigureAwait(true);
 
         rejected.Message.ShouldContain("type_id");

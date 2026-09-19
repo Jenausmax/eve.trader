@@ -135,12 +135,22 @@ public sealed partial class EveRefMarketHistoryArchive(
 
                 return null;
             }
+            catch (MarketHistoryFormatException failure)
+            {
+                // Дефект данных источника повтором не лечится, но и ронять из-за него
+                // прогон на восемь тысяч суток нельзя: сутки пропускаются без записи
+                // покрытия, то есть покрытие честно покажет их восполнимыми.
+                logger.LogError(failure, "Сутки {Day} пропущены: файл источника не разобран", day);
+
+                return null;
+            }
         }
     }
 
     /// <summary>
     /// Обрыв загрузки, таймаут и порча архива — всё это поводы повторить. Ошибка разбора
-    /// повтором не лечится: формат файла от этого не изменится.
+    /// повтором не лечится: формат файла от этого не изменится, и она разбирается
+    /// отдельно — пропуском суток.
     /// </summary>
     public static bool IsTransient(Exception failure) =>
         failure is HttpRequestException or IOException or TaskCanceledException;
