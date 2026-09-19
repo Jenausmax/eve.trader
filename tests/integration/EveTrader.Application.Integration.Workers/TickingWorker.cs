@@ -2,7 +2,7 @@ using EveTrader.Application.BackgroundServices;
 using EveTrader.Application.Diagnostics;
 using Microsoft.Extensions.Logging;
 
-namespace EveTrader.Application.Integration;
+namespace EveTrader.Application.Integration.Workers;
 
 /// <summary>
 /// Воркер, отрабатывающий заданное число циклов и сообщающий об этом наружу.

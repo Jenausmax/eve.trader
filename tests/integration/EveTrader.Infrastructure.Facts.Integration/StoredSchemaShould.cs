@@ -16,7 +16,7 @@ public sealed class StoredSchemaShould
         using var lake = new Lake();
         CancellationToken token = TestContext.Current.CancellationToken;
 
-        _ = await lake.Writer.WriteCoverageOnlyAsync(Sample.Covering("obs-schema", observedDay: 1), token).ConfigureAwait(true);
+        _ = await lake.Writer.WriteCoverageOnlyAsync([Sample.Covering("obs-schema", observedDay: 1)], token).ConfigureAwait(true);
 
         var file = lake.Layout.CoverageFileFor(Sample.DayOnly(1), ObservationId.From("obs-schema"));
         IReadOnlyDictionary<string, object?> stored = (await ParquetCoverageLog.ReadFileAsync(file, token).ConfigureAwait(true)).Single();
@@ -71,14 +71,22 @@ public sealed class StoredSchemaShould
         using var lake = new Lake();
         CancellationToken token = TestContext.Current.CancellationToken;
 
+        var id = ObservationId.From("obs-envelope");
+
         _ = await lake.Writer.WriteAsync(
-            Sample.History("obs-envelope", calendarDay: 1, volume: 1, knownAt: Sample.Day(2)),
-            Sample.Covering("obs-envelope", observedDay: 1),
+            FactBatch.Of(
+                FactSet.BookFeatures,
+                Sample.TheForge,
+                id,
+                Sample.DayOnly(1),
+                [new FactEnvelope("features/1", EventTime.At(Sample.Day(1)), Sample.Day(2), id, StaticDataVersion.None)],
+                [FactColumn.OfDouble("spread", [1.5])]),
+            [Sample.Covering("obs-envelope", observedDay: 1)],
             token).ConfigureAwait(true);
 
-        var file = lake.Layout.FileFor(
-            FactSet.HistoryDaily, Sample.DayOnly(1), Sample.TheForge, ObservationId.From("obs-envelope"));
-        IReadOnlyDictionary<string, object?> stored = (await ParquetCoverageLog.ReadFileAsync(file, token).ConfigureAwait(true)).Single();
+        var file = lake.Layout.FileFor(FactSet.BookFeatures, Sample.DayOnly(1), Sample.TheForge, id);
+        IReadOnlyDictionary<string, object?> stored =
+            (await ParquetCoverageLog.ReadFileAsync(file, token).ConfigureAwait(true)).Single();
 
         foreach (var column in FactColumnNames.Envelope)
         {
@@ -87,6 +95,26 @@ public sealed class StoredSchemaShould
 
         // Регион и дата наблюдения в файл не пишутся — они в пути партиции.
         stored.Keys.ShouldNotContain(FactColumnNames.Region);
+        stored.Keys.ShouldNotContain(FactColumnNames.ObservedDate);
+    }
+
+    [Fact]
+    public async Task CarryRegionAsAColumnWhereItIsNotAPartition()
+    {
+        using var lake = new Lake();
+        CancellationToken token = TestContext.Current.CancellationToken;
+
+        _ = await lake.Writer.WriteAsync(
+            Sample.History("obs-global", calendarDay: 1, volume: 1, knownAt: Sample.Day(2)),
+            [Sample.Covering("obs-global", observedDay: 1)],
+            token).ConfigureAwait(true);
+
+        var file = lake.Layout.FileFor(
+            FactSet.HistoryDaily, Sample.DayOnly(1), null, ObservationId.From("obs-global"));
+        IReadOnlyDictionary<string, object?> stored =
+            (await ParquetCoverageLog.ReadFileAsync(file, token).ConfigureAwait(true)).Single();
+
+        stored.Keys.ShouldContain(FactColumnNames.Region);
         stored.Keys.ShouldNotContain(FactColumnNames.ObservedDate);
     }
 }

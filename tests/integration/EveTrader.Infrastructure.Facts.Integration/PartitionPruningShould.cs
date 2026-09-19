@@ -28,7 +28,7 @@ public sealed partial class PartitionPruningShould
         {
             _ = await lake.Writer.WriteAsync(
                 Sample.History($"obs-{day}", calendarDay: day, volume: day, knownAt: Sample.Day(day + 1)),
-                Sample.Covering($"obs-{day}", observedDay: day),
+                [Sample.Covering($"obs-{day}", observedDay: day)],
                 token).ConfigureAwait(true);
         }
 
@@ -56,7 +56,7 @@ public sealed partial class PartitionPruningShould
         {
             _ = await lake.Writer.WriteAsync(
                 Sample.History($"obs-{day}", calendarDay: day, volume: day, knownAt: Sample.Day(day + 1)),
-                Sample.Covering($"obs-{day}", observedDay: day),
+                [Sample.Covering($"obs-{day}", observedDay: day)],
                 token).ConfigureAwait(true);
         }
 
@@ -68,30 +68,57 @@ public sealed partial class PartitionPruningShould
     }
 
     [Fact]
-    public async Task PutRegionIntoThePartitionPath()
+    public async Task PutRegionIntoThePartitionPathOfRegionPartitionedSets()
     {
         using var lake = new Lake();
         CancellationToken token = TestContext.Current.CancellationToken;
 
         var domain = RegionId.From(10000043);
 
-        _ = await lake.Writer.WriteAsync(
-            Sample.History("obs-forge", calendarDay: 1, volume: 1, knownAt: Sample.Day(2)),
-            Sample.Covering("obs-forge", observedDay: 1),
-            token).ConfigureAwait(true);
-        _ = await lake.Writer.WriteAsync(
-            Sample.History("obs-domain", calendarDay: 1, volume: 2, knownAt: Sample.Day(2), region: domain),
-            Sample.Covering("obs-domain", observedDay: 1, region: domain),
-            token).ConfigureAwait(true);
+        foreach ((var observation, RegionId region) in
+            new[] { ("obs-forge", Sample.TheForge), ("obs-domain", domain) })
+        {
+            var id = ObservationId.From(observation);
 
-        var partitions = Directory
+            _ = await lake.Writer.WriteAsync(
+                FactBatch.Of(
+                    FactSet.BookFeatures,
+                    region,
+                    id,
+                    Sample.DayOnly(1),
+                    [new FactEnvelope($"features/{region.Value}", EventTime.At(Sample.Day(1)), Sample.Day(1), id, StaticDataVersion.None)],
+                    [FactColumn.OfDouble("spread", [1.5])]),
+                [Sample.Covering(observation, observedDay: 1, region: region)],
+                token).ConfigureAwait(true);
+        }
+
+        List<string?> partitions = [.. Directory
             .EnumerateDirectories(
-                Path.Combine(lake.Layout.SetRoot(FactSet.HistoryDaily), LakeLayoutSegment(Sample.DayOnly(1))))
+                Path.Combine(lake.Layout.SetRoot(FactSet.BookFeatures), LakeLayoutSegment(Sample.DayOnly(1))))
             .Select(Path.GetFileName)
-            .Order(StringComparer.Ordinal)
-            .ToList();
+            .Order(StringComparer.Ordinal)];
 
         partitions.ShouldBe(["region=10000002", "region=10000043"]);
+    }
+
+    [Fact]
+    public async Task KeepRegionOutOfThePathForDailyHistory()
+    {
+        using var lake = new Lake();
+        CancellationToken token = TestContext.Current.CancellationToken;
+
+        // Источник публикует сутки одним глобальным файлом: разнесение по регионам дало бы
+        // сотни файлов по паре сотен строк вместо одного целого.
+        _ = await lake.Writer.WriteAsync(
+            Sample.History("obs-global", calendarDay: 1, volume: 1, knownAt: Sample.Day(2)),
+            [Sample.Covering("obs-global", observedDay: 1)],
+            token).ConfigureAwait(true);
+
+        var partition = Path.Combine(
+            lake.Layout.SetRoot(FactSet.HistoryDaily), LakeLayoutSegment(Sample.DayOnly(1)));
+
+        Directory.EnumerateDirectories(partition).ShouldBeEmpty();
+        Directory.EnumerateFiles(partition).Count().ShouldBe(1);
     }
 
     private static string LakeLayoutSegment(DateOnly date) =>

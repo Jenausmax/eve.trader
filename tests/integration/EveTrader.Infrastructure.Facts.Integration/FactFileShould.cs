@@ -33,7 +33,7 @@ public sealed class FactFileShould
                 FactColumn.OfString("side", ["buy", "sell"]),
             ]);
 
-        _ = await lake.Writer.WriteAsync(batch, Sample.Covering("obs-types", observedDay: 1), token).ConfigureAwait(true);
+        _ = await lake.Writer.WriteAsync(batch, [Sample.Covering("obs-types", observedDay: 1)], token).ConfigureAwait(true);
 
         List<FactRow> rows = await lake.Rows
             .ReadAsync(FactSet.BookFeatures, TimeRange.Between(Sample.Day(1), Sample.Day(8)), null, token)
@@ -70,7 +70,7 @@ public sealed class FactFileShould
             [.. keys.Select(key => new FactEnvelope(key, EventTime.At(Sample.Day(1)), Sample.Day(2), id, StaticDataVersion.None))],
             [FactColumn.OfInt64("position", [0, 1, 2])]);
 
-        _ = await lake.Writer.WriteAsync(batch, Sample.Covering("obs-order", observedDay: 1), token).ConfigureAwait(true);
+        _ = await lake.Writer.WriteAsync(batch, [Sample.Covering("obs-order", observedDay: 1)], token).ConfigureAwait(true);
 
         var file = lake.Layout.FileFor(FactSet.BookFeatures, Sample.DayOnly(1), Sample.TheForge, id);
         IReadOnlyList<IReadOnlyDictionary<string, object?>> stored = await ParquetCoverageLog.ReadFileAsync(file, token).ConfigureAwait(true);

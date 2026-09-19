@@ -19,12 +19,12 @@ public sealed class BitemporalReadShould
 
         _ = await lake.Writer.WriteAsync(
             Sample.History("obs-first", calendarDay: 1, volume: 100, knownAt: Sample.Day(1).AddHours(6)),
-            Sample.Covering("obs-first", observedDay: 1),
+            [Sample.Covering("obs-first", observedDay: 1)],
             token).ConfigureAwait(true);
 
         _ = await lake.Writer.WriteAsync(
             Sample.History("obs-refined", calendarDay: 1, volume: 175, knownAt: Sample.Day(3), observedDay: 3),
-            Sample.Covering("obs-refined", observedDay: 3),
+            [Sample.Covering("obs-refined", observedDay: 3)],
             token).ConfigureAwait(true);
 
         return lake;
@@ -89,11 +89,11 @@ public sealed class BitemporalReadShould
         using var lake = new Lake();
 
         FactBatch old = Sample.History("obs-old", calendarDay: 1, volume: 10, knownAt: Sample.Day(2));
-        _ = await lake.Writer.WriteAsync(old, Sample.Covering("obs-old", observedDay: 1), token).ConfigureAwait(true);
+        _ = await lake.Writer.WriteAsync(old, [Sample.Covering("obs-old", observedDay: 1)], token).ConfigureAwait(true);
 
         var recomputed = FactBatch.Of(
             FactSet.HistoryDaily,
-            Sample.TheForge,
+            null,
             ObservationId.From("obs-new-sde"),
             Sample.DayOnly(3),
             [new FactEnvelope(
@@ -102,9 +102,12 @@ public sealed class BitemporalReadShould
                 Sample.Day(3),
                 ObservationId.From("obs-new-sde"),
                 StaticDataVersion.From("sde-2026.02"))],
-            [FactColumn.OfInt64("volume", [11])]);
+            [
+                FactColumn.OfInt64("region", [Sample.TheForge.Value]),
+                FactColumn.OfInt64("volume", [11]),
+            ]);
 
-        _ = await lake.Writer.WriteAsync(recomputed, Sample.Covering("obs-new-sde", observedDay: 3), token).ConfigureAwait(true);
+        _ = await lake.Writer.WriteAsync(recomputed, [Sample.Covering("obs-new-sde", observedDay: 3)], token).ConfigureAwait(true);
 
         var versions = (await lake.Rows.SelectAsync(FactSet.HistoryDaily, Week, null, token).ConfigureAwait(true))
             .Select(static row => row.Envelope.StaticData.Value)

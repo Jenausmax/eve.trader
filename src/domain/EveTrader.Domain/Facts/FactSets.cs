@@ -10,6 +10,15 @@ public static class FactSets
     /// </summary>
     public static bool IsRaw(FactSet set) => set is not FactSet.BookFeatures;
 
+    /// <summary>
+    /// Входит ли регион в путь партиции. Для наблюдений стакана — да: они снимаются
+    /// по региону, и партиция совпадает с единицей работы. Для дневной истории — нет:
+    /// источник публикует сутки одним глобальным файлом на все регионы, и разнесение
+    /// его по регионам дало бы сотни файлов по паре сотен строк вместо одного целого.
+    /// Регион там живёт колонкой.
+    /// </summary>
+    public static bool PartitionsByRegion(FactSet set) => set is not FactSet.HistoryDaily;
+
     public static string PathSegment(FactSet set) => set switch
     {
         FactSet.OrderEvents => "order-events",

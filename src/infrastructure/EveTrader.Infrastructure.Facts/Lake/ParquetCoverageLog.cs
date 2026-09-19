@@ -63,18 +63,37 @@ public sealed class ParquetCoverageLog(LakeLayout layout) : ICoverageLog
     }
 
     /// <summary>
-    /// Дописывает запись покрытия. Наблюдение считается состоявшимся ровно с этого
-    /// момента, поэтому вызов идёт последним в протоколе записи.
+    /// Дописывает записи покрытия одного наблюдения. Наблюдение считается состоявшимся
+    /// ровно с этого момента, поэтому вызов идёт последним в протоколе записи.
+    ///
+    /// Записей может быть несколько: одно наблюдение архива накрывает все регионы,
+    /// присутствующие в глобальном файле источника. Файл по-прежнему один и назван
+    /// идентификатором наблюдения — иначе идемпотентность и уборка перестали бы
+    /// опираться на имя.
     /// </summary>
-    public async Task AppendAsync(CoverageEntry entry, CancellationToken cancellationToken)
+    public async Task AppendAsync(IReadOnlyList<CoverageEntry> entries, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(entry);
+        ArgumentNullException.ThrowIfNull(entries);
 
-        var observedDate = DateOnly.FromDateTime(entry.Collected.From.UtcDateTime);
-        var file = layout.CoverageFileFor(observedDate, entry.Observation);
+        if (entries.Count == 0)
+        {
+            throw new ArgumentException("Наблюдение несёт хотя бы одну запись покрытия", nameof(entries));
+        }
+
+        ObservationId observation = entries[0].Observation;
+
+        if (entries.Any(entry => entry.Observation != observation))
+        {
+            throw new ArgumentException(
+                "Все записи одного файла покрытия принадлежат одному наблюдению",
+                nameof(entries));
+        }
+
+        var observedDate = DateOnly.FromDateTime(entries[0].Collected.From.UtcDateTime);
+        var file = layout.CoverageFileFor(observedDate, observation);
 
         await AtomicParquet
-            .WriteAsync(file, CoverageSchema.Schema, [CoverageSchema.ToRow(entry)], cancellationToken)
+            .WriteAsync(file, CoverageSchema.Schema, [.. entries.Select(CoverageSchema.ToRow)], cancellationToken)
             .ConfigureAwait(false);
     }
 

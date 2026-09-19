@@ -5,7 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
 
-namespace EveTrader.Application.Integration;
+namespace EveTrader.Application.Integration.Workers;
 
 /// <summary>
 /// База воркера под настоящим хостом и настоящим конвейером метрик: без моков,

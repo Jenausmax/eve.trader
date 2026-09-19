@@ -5,4 +5,8 @@
     <ProjectReference Include="..\..\domain\EveTrader.Domain\EveTrader.Domain.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="SharpZipLib" />
+  </ItemGroup>
+
 </Project>

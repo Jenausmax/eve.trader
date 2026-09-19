@@ -53,7 +53,7 @@ public sealed class ImmutabilityShould
             [new FactEnvelope("features/10000002/34", EventTime.At(Sample.Day(1)), Sample.Day(1), id, StaticDataVersion.None)],
             [FactColumn.OfDouble("spread", [1.5])]);
 
-        _ = await lake.Writer.WriteAsync(features, Sample.Covering("obs-features", observedDay: 1), token).ConfigureAwait(true);
+        _ = await lake.Writer.WriteAsync(features, [Sample.Covering("obs-features", observedDay: 1)], token).ConfigureAwait(true);
 
         var removed = await lake.Maintenance.DropDerivedAsync(
             FactSet.BookFeatures, TimeRange.Between(Sample.Day(1), Sample.Day(2)), token).ConfigureAwait(true);
@@ -73,7 +73,7 @@ public sealed class ImmutabilityShould
 
         _ = await lake.Writer.WriteAsync(
             Sample.History("obs-old", calendarDay: 1, volume: 1, knownAt: Sample.Day(2)),
-            Sample.Covering("obs-old", observedDay: 1),
+            [Sample.Covering("obs-old", observedDay: 1)],
             token).ConfigureAwait(true);
 
         await lake.Registry.RecordAsync(

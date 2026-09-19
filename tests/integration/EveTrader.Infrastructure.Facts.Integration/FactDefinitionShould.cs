@@ -32,7 +32,7 @@ public sealed class FactDefinitionShould
         // Одно подтверждённое наблюдение, чтобы озеро не было пустым.
         _ = await lake.Writer.WriteAsync(
             Sample.History("obs-real", calendarDay: 2, volume: 7, knownAt: Sample.Day(3)),
-            Sample.Covering("obs-real", observedDay: 2),
+            [Sample.Covering("obs-real", observedDay: 2)],
             token).ConfigureAwait(true);
 
         List<FactRow> rows = await lake.Rows.ReadAsync(FactSet.HistoryDaily, Week, null, token).ToListAsync(token).ConfigureAwait(true);
@@ -53,7 +53,7 @@ public sealed class FactDefinitionShould
 
         _ = await lake.Writer.WriteAsync(
             Sample.History("obs-real", calendarDay: 2, volume: 7, knownAt: Sample.Day(3)),
-            Sample.Covering("obs-real", observedDay: 2),
+            [Sample.Covering("obs-real", observedDay: 2)],
             token).ConfigureAwait(true);
 
         var removed = await lake.Maintenance.SweepUnconfirmedAsync(token).ConfigureAwait(true);
@@ -94,8 +94,8 @@ public sealed class FactDefinitionShould
         FactBatch batch = Sample.History("obs-once", calendarDay: 1, volume: 42, knownAt: Sample.Day(2));
         CoverageEntry coverage = Sample.Covering("obs-once", observedDay: 1);
 
-        (await lake.Writer.WriteAsync(batch, coverage, token).ConfigureAwait(true)).ShouldBe(FactWriteOutcome.Written);
-        (await lake.Writer.WriteAsync(batch, coverage, token).ConfigureAwait(true)).ShouldBe(FactWriteOutcome.AlreadyPresent);
+        (await lake.Writer.WriteAsync(batch, [coverage], token).ConfigureAwait(true)).ShouldBe(FactWriteOutcome.Written);
+        (await lake.Writer.WriteAsync(batch, [coverage], token).ConfigureAwait(true)).ShouldBe(FactWriteOutcome.AlreadyPresent);
 
         List<FactRow> rows = await lake.Rows.ReadAsync(FactSet.HistoryDaily, Week, null, token).ToListAsync(token).ConfigureAwait(true);
 
@@ -117,8 +117,8 @@ public sealed class FactDefinitionShould
             TimeSpan.FromMinutes(5),
             Sample.Day(1).AddHours(1));
 
-        (await lake.Writer.WriteCoverageOnlyAsync(unchanged, token).ConfigureAwait(true)).ShouldBe(FactWriteOutcome.Written);
-        (await lake.Writer.WriteCoverageOnlyAsync(unchanged, token).ConfigureAwait(true)).ShouldBe(FactWriteOutcome.AlreadyPresent);
+        (await lake.Writer.WriteCoverageOnlyAsync([unchanged], token).ConfigureAwait(true)).ShouldBe(FactWriteOutcome.Written);
+        (await lake.Writer.WriteCoverageOnlyAsync([unchanged], token).ConfigureAwait(true)).ShouldBe(FactWriteOutcome.AlreadyPresent);
 
         IReadOnlyList<CoverageEntry> entries = await lake.Coverage.ReadAsync(Week, [], token).ConfigureAwait(true);
 

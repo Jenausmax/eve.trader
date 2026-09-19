@@ -23,6 +23,7 @@
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.12" />
     <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.12" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="10.0.12" />
   </ItemGroup>
 
   <!--
@@ -33,6 +34,11 @@
   <ItemGroup>
     <PackageVersion Include="Parquet.Net" Version="6.1.0" />
     <PackageVersion Include="DuckDB.NET.Data.Full" Version="1.5.5" />
+  </ItemGroup>
+
+  <!-- Распаковка архивов источника: bzip2 в BCL нет -->
+  <ItemGroup>
+    <PackageVersion Include="SharpZipLib" Version="1.4.2" />
   </ItemGroup>
 
   <!-- Тестовый стек: фиксированный набор из .agents/rules/csharp/testing-stack-and-pyramid.md -->

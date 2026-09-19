@@ -21,9 +21,9 @@ public sealed class OperationalReportShould
         CancellationToken token = TestContext.Current.CancellationToken;
         var domain = RegionId.From(10000043);
 
-        _ = await lake.Writer.WriteCoverageOnlyAsync(Sample.Covering("obs-a", observedDay: 1, sourceGaps: 2), token).ConfigureAwait(true);
-        _ = await lake.Writer.WriteCoverageOnlyAsync(Sample.Covering("obs-b", observedDay: 1, sourceGaps: 1), token).ConfigureAwait(true);
-        _ = await lake.Writer.WriteCoverageOnlyAsync(Sample.Covering("obs-c", observedDay: 1, region: domain), token).ConfigureAwait(true);
+        _ = await lake.Writer.WriteCoverageOnlyAsync([Sample.Covering("obs-a", observedDay: 1, sourceGaps: 2)], token).ConfigureAwait(true);
+        _ = await lake.Writer.WriteCoverageOnlyAsync([Sample.Covering("obs-b", observedDay: 1, sourceGaps: 1)], token).ConfigureAwait(true);
+        _ = await lake.Writer.WriteCoverageOnlyAsync([Sample.Covering("obs-c", observedDay: 1, region: domain)], token).ConfigureAwait(true);
 
         IReadOnlyDictionary<RegionId, CoverageCounts> counts = await lake.Reports(UpstreamCatalog.Empty).CountsAsync(Day, token).ConfigureAwait(true);
 
@@ -38,21 +38,21 @@ public sealed class OperationalReportShould
         using var lake = new Lake();
         CancellationToken token = TestContext.Current.CancellationToken;
 
-        _ = await lake.Writer.WriteCoverageOnlyAsync(Sample.Covering("obs-ok", observedDay: 1), token).ConfigureAwait(true);
+        _ = await lake.Writer.WriteCoverageOnlyAsync([Sample.Covering("obs-ok", observedDay: 1)], token).ConfigureAwait(true);
 
         _ = await lake.Writer.WriteCoverageOnlyAsync(
-            CoverageEntries.Partial(
+            [CoverageEntries.Partial(
                 ObservationId.From("obs-torn"), Sample.TheForge,
                 TimeRange.Between(Sample.Day(1).AddHours(2), Sample.Day(1).AddHours(3)),
                 pagesReceived: 30, pagesExpected: 40, orderCount: 900,
-                source: "esi", observationStep: TimeSpan.FromMinutes(5), knownAt: Sample.Day(1).AddHours(3)),
+                source: "esi", observationStep: TimeSpan.FromMinutes(5), knownAt: Sample.Day(1).AddHours(3))],
             token).ConfigureAwait(true);
 
         _ = await lake.Writer.WriteCoverageOnlyAsync(
-            CoverageEntries.Failed(
+            [CoverageEntries.Failed(
                 ObservationId.From("obs-dead"), Sample.TheForge,
                 TimeRange.Between(Sample.Day(1).AddHours(4), Sample.Day(1).AddHours(5)),
-                "esi", TimeSpan.FromMinutes(5), "503", Sample.Day(1).AddHours(5)),
+                "esi", TimeSpan.FromMinutes(5), "503", Sample.Day(1).AddHours(5))],
             token).ConfigureAwait(true);
 
         CoverageCounts counts = (await lake.Reports(UpstreamCatalog.Empty).CountsAsync(Day, token).ConfigureAwait(true))[Sample.TheForge];
@@ -69,11 +69,11 @@ public sealed class OperationalReportShould
         CancellationToken token = TestContext.Current.CancellationToken;
 
         _ = await lake.Writer.WriteCoverageOnlyAsync(
-            CoverageEntries.Success(
+            [CoverageEntries.Success(
                 ObservationId.From("obs-half"), Sample.TheForge,
                 TimeRange.Between(Sample.Day(1), Sample.Day(1).AddHours(12)),
                 pages: 1, orderCount: 5, source: "esi",
-                observationStep: TimeSpan.FromMinutes(5), knownAt: Sample.Day(1).AddHours(12)),
+                observationStep: TimeSpan.FromMinutes(5), knownAt: Sample.Day(1).AddHours(12))],
             token).ConfigureAwait(true);
 
         var upstream = UpstreamCatalog.Of(new Dictionary<FactSet, TimeRange>

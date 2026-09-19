@@ -9,7 +9,7 @@ public sealed record FactBatch
 {
     private FactBatch(
         FactSet set,
-        RegionId region,
+        RegionId? region,
         ObservationId observation,
         DateOnly observedDate,
         IReadOnlyList<FactEnvelope> envelopes,
@@ -25,7 +25,12 @@ public sealed record FactBatch
 
     public FactSet Set { get; }
 
-    public RegionId Region { get; }
+    /// <summary>
+    /// Регион партиции — и <see langword="null" /> у наборов, которые по региону не
+    /// партиционируются (<see cref="FactSets.PartitionsByRegion" />). У таких регион
+    /// приходит колонкой и меняется от строки к строке.
+    /// </summary>
+    public RegionId? Region { get; }
 
     public ObservationId Observation { get; }
 
@@ -40,7 +45,7 @@ public sealed record FactBatch
 
     public static FactBatch Of(
         FactSet set,
-        RegionId region,
+        RegionId? region,
         ObservationId observation,
         DateOnly observedDate,
         IReadOnlyList<FactEnvelope> envelopes,
@@ -54,6 +59,20 @@ public sealed record FactBatch
             throw new ArgumentException(
                 "Все строки порции принадлежат одному наблюдению: иначе подтверждение покрытием перестаёт быть всё-или-ничего",
                 nameof(envelopes));
+        }
+
+        if (FactSets.PartitionsByRegion(set) && region is null)
+        {
+            throw new ArgumentException(
+                $"Набор '{FactSets.PathSegment(set)}' партиционируется по региону — регион обязателен",
+                nameof(region));
+        }
+
+        if (!FactSets.PartitionsByRegion(set) && region is not null)
+        {
+            throw new ArgumentException(
+                $"Набор '{FactSets.PathSegment(set)}' по региону не партиционируется — регион приходит колонкой",
+                nameof(region));
         }
 
         FactColumn? mismatched = columns.FirstOrDefault(column => column.Length != envelopes.Count);

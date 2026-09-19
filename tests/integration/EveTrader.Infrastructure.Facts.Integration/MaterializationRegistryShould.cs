@@ -20,7 +20,7 @@ public sealed class MaterializationRegistryShould
         // Файлы на диске есть, а записи в реестре нет — значит не материализовано.
         _ = await lake.Writer.WriteAsync(
             Sample.History("obs-1", calendarDay: 1, volume: 1, knownAt: Sample.Day(2)),
-            Sample.Covering("obs-1", observedDay: 1),
+            [Sample.Covering("obs-1", observedDay: 1)],
             token).ConfigureAwait(true);
 
         (await lake.Registry.IsMaterializedAsync(FactSet.HistoryDaily, Sample.TheForge, range, token).ConfigureAwait(true))

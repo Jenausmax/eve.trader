@@ -25,9 +25,19 @@ public sealed class LakeLayout(LakeOptions options)
 
     public string SetRoot(FactSet set) => Path.Combine(FactsRoot, FactSets.PathSegment(set));
 
-    /// <summary>Каталог партиции: набор, дата наблюдения, регион.</summary>
-    public string PartitionDirectory(FactSet set, DateOnly observedDate, RegionId region) =>
-        Path.Combine(SetRoot(set), ObservedDateSegment(observedDate), RegionSegment(region));
+    /// <summary>
+    /// Каталог партиции: набор, дата наблюдения и — у наборов, которые по региону
+    /// партиционируются, — регион. Дневная история приходит от источника одним
+    /// глобальным файлом на сутки, поэтому регион в её пути не участвует.
+    /// </summary>
+    public string PartitionDirectory(FactSet set, DateOnly observedDate, RegionId? region)
+    {
+        var partition = Path.Combine(SetRoot(set), ObservedDateSegment(observedDate));
+
+        return region is { } value && FactSets.PartitionsByRegion(set)
+            ? Path.Combine(partition, RegionSegment(value))
+            : partition;
+    }
 
     /// <summary>Каталог партиции покрытия: регион в пути не участвует — записи лежат вперемешку.</summary>
     public string CoverageDirectory(DateOnly observedDate) =>
@@ -46,7 +56,7 @@ public sealed class LakeLayout(LakeOptions options)
     public string SetGlob(FactSet set) =>
         Path.Combine(SetRoot(set), "**", "*" + ParquetExtension);
 
-    public string FileFor(FactSet set, DateOnly observedDate, RegionId region, ObservationId observation) =>
+    public string FileFor(FactSet set, DateOnly observedDate, RegionId? region, ObservationId observation) =>
         Path.Combine(PartitionDirectory(set, observedDate, region), observation.Value + ParquetExtension);
 
     public string CoverageFileFor(DateOnly observedDate, ObservationId observation) =>

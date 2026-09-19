@@ -12,14 +12,22 @@ namespace EveTrader.Application.Facts;
 public interface IFactWriter
 {
     /// <summary>
-    /// Записывает порцию строк и подтверждает её записью покрытия. Наблюдение
+    /// Записывает порцию строк и подтверждает её записями покрытия. Наблюдение
     /// становится фактами целиком либо не становится вовсе.
+    ///
+    /// Записей несколько там, где одно наблюдение накрывает несколько регионов:
+    /// источник дневной истории публикует сутки глобальным файлом на все регионы.
     /// </summary>
-    Task<FactWriteOutcome> WriteAsync(FactBatch batch, CoverageEntry coverage, CancellationToken cancellationToken);
+    Task<FactWriteOutcome> WriteAsync(
+        FactBatch batch,
+        IReadOnlyList<CoverageEntry> coverage,
+        CancellationToken cancellationToken);
 
     /// <summary>
     /// Записывает покрытие без строк данных — исход «не изменилось» или отказ.
     /// Наблюдение состоялось, событий нет.
     /// </summary>
-    Task<FactWriteOutcome> WriteCoverageOnlyAsync(CoverageEntry coverage, CancellationToken cancellationToken);
+    Task<FactWriteOutcome> WriteCoverageOnlyAsync(
+        IReadOnlyList<CoverageEntry> coverage,
+        CancellationToken cancellationToken);
 }

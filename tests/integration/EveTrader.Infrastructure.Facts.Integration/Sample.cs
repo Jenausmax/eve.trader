@@ -31,13 +31,18 @@ internal static class Sample
             id,
             StaticDataVersion.From("sde-2026.01"));
 
+        // Дневная история по региону не партиционируется: источник публикует сутки
+        // глобальным файлом на все регионы, поэтому регион приходит колонкой.
         return FactBatch.Of(
             FactSet.HistoryDaily,
-            at,
+            null,
             id,
             DayOnly(observedDay ?? calendarDay),
             [envelope],
-            [FactColumn.OfInt64("volume", [volume])]);
+            [
+                FactColumn.OfInt64("region", [at.Value]),
+                FactColumn.OfInt64("volume", [volume]),
+            ]);
     }
 
     public static CoverageEntry Covering(

@@ -15,17 +15,17 @@ public sealed class CoverageLogShould
         using var lake = new Lake();
         CancellationToken token = TestContext.Current.CancellationToken;
 
-        _ = await lake.Writer.WriteCoverageOnlyAsync(Sample.Covering("obs-ok", observedDay: 1), token).ConfigureAwait(true);
+        _ = await lake.Writer.WriteCoverageOnlyAsync([Sample.Covering("obs-ok", observedDay: 1)], token).ConfigureAwait(true);
 
         _ = await lake.Writer.WriteCoverageOnlyAsync(
-            CoverageEntries.Failed(
+            [CoverageEntries.Failed(
                 ObservationId.From("obs-dead"),
                 Sample.TheForge,
                 TimeRange.Between(Sample.Day(2), Sample.Day(2).AddHours(1)),
                 "esi",
                 TimeSpan.FromMinutes(5),
                 "источник ответил 503",
-                Sample.Day(2).AddHours(1)),
+                Sample.Day(2).AddHours(1))],
             token).ConfigureAwait(true);
 
         IReadOnlyList<CoverageEntry> entries = await lake.Coverage.ReadAsync(Week, [], token).ConfigureAwait(true);
@@ -45,11 +45,11 @@ public sealed class CoverageLogShould
 
         // Наблюдались первые сутки; вторые доступны наверху; третьи не доступны нигде.
         _ = await lake.Writer.WriteCoverageOnlyAsync(
-            CoverageEntries.Success(
+            [CoverageEntries.Success(
                 ObservationId.From("obs-day1"), Sample.TheForge,
                 TimeRange.Between(Sample.Day(1), Sample.Day(2)),
                 pages: 1, orderCount: 10, source: "archive",
-                observationStep: TimeSpan.FromMinutes(30), knownAt: Sample.Day(2)),
+                observationStep: TimeSpan.FromMinutes(30), knownAt: Sample.Day(2))],
             token).ConfigureAwait(true);
 
         IReadOnlyList<CoverageEntry> entries = await lake.Coverage.ReadAsync(Week, [], token).ConfigureAwait(true);
@@ -74,8 +74,8 @@ public sealed class CoverageLogShould
         using var lake = new Lake();
         CancellationToken token = TestContext.Current.CancellationToken;
 
-        _ = await lake.Writer.WriteCoverageOnlyAsync(Sample.Covering("obs-a", observedDay: 1, sourceGaps: 2), token).ConfigureAwait(true);
-        _ = await lake.Writer.WriteCoverageOnlyAsync(Sample.Covering("obs-b", observedDay: 2, sourceGaps: 5), token).ConfigureAwait(true);
+        _ = await lake.Writer.WriteCoverageOnlyAsync([Sample.Covering("obs-a", observedDay: 1, sourceGaps: 2)], token).ConfigureAwait(true);
+        _ = await lake.Writer.WriteCoverageOnlyAsync([Sample.Covering("obs-b", observedDay: 2, sourceGaps: 5)], token).ConfigureAwait(true);
 
         IReadOnlyList<CoverageEntry> entries = await lake.Coverage.ReadAsync(Week, [], token).ConfigureAwait(true);
 
@@ -89,8 +89,8 @@ public sealed class CoverageLogShould
         CancellationToken token = TestContext.Current.CancellationToken;
         var domain = RegionId.From(10000043);
 
-        _ = await lake.Writer.WriteCoverageOnlyAsync(Sample.Covering("obs-forge", observedDay: 1), token).ConfigureAwait(true);
-        _ = await lake.Writer.WriteCoverageOnlyAsync(Sample.Covering("obs-domain", observedDay: 1, region: domain), token).ConfigureAwait(true);
+        _ = await lake.Writer.WriteCoverageOnlyAsync([Sample.Covering("obs-forge", observedDay: 1)], token).ConfigureAwait(true);
+        _ = await lake.Writer.WriteCoverageOnlyAsync([Sample.Covering("obs-domain", observedDay: 1, region: domain)], token).ConfigureAwait(true);
 
         (await lake.Coverage.ReadAsync(Week, [], token).ConfigureAwait(true)).Count.ShouldBe(2);
         (await lake.Coverage.ReadAsync(Week, [domain], token).ConfigureAwait(true)).Single().Region.ShouldBe(domain);
@@ -103,11 +103,11 @@ public sealed class CoverageLogShould
         CancellationToken token = TestContext.Current.CancellationToken;
 
         _ = await lake.Writer.WriteCoverageOnlyAsync(
-            CoverageEntries.Success(
+            [CoverageEntries.Success(
                 ObservationId.From("obs-archive"), Sample.TheForge,
                 TimeRange.Between(Sample.Day(1), Sample.Day(1).AddMinutes(30)),
                 pages: 1, orderCount: 10, source: "archive",
-                observationStep: TimeSpan.FromMinutes(30), knownAt: Sample.Day(2)),
+                observationStep: TimeSpan.FromMinutes(30), knownAt: Sample.Day(2))],
             token).ConfigureAwait(true);
 
         CoverageEntry entry = (await lake.Coverage.ReadAsync(Week, [], token).ConfigureAwait(true)).Single();
