@@ -51,7 +51,7 @@ internal sealed class BookLake : IDisposable
         ObservationOutcome outcome = Observer.Observe(orders, meta);
 
         _ = await Derivation.WriteAsync(
-            meta, outcome, orders, FeatureOptions, StaticDataVersion.From("sde-test"), cancellationToken)
+            meta, outcome, orders, FeatureOptions, StaticDataVersion.From("sde-test"), "observer", cancellationToken)
             .ConfigureAwait(true);
 
         return outcome;

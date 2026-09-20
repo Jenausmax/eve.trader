@@ -69,7 +69,7 @@ public static class MarketHistoryCsv
             }
             catch (Exception failure) when (failure is FormatException or IndexOutOfRangeException or OverflowException)
             {
-                throw new MarketHistoryFormatException($"Строка не разобрана: {line}", failure);
+                throw new ArchiveFormatException($"Строка не разобрана: {line}", failure);
             }
 
             yield return row;
@@ -95,7 +95,7 @@ public static class MarketHistoryCsv
 
         return missing.Count == 0
             ? columns
-            : throw new MarketHistoryFormatException(
+            : throw new ArchiveFormatException(
                 $"В заголовке CSV нет колонок {string.Join(", ", missing.Select(name => $"'{name}'"))}: {header}");
     }
 

@@ -9,21 +9,24 @@ public sealed record CommandLine(
     DateTimeOffset From,
     DateTimeOffset To,
     DateTimeOffset? KnownSince,
-    string StaticData)
+    string StaticData,
+    IReadOnlyList<int> Regions)
 {
     public const string Usage = """
         EveTrader.Cli <команда> [параметры]
 
         Команды:
           import-history    импорт дневной истории из архива EVE Ref
+          import-orderbook  конвертация архивных снимков стакана в факты
           history-stats     замеры по импортированной дневной истории
 
         Параметры:
           --lake <путь>         корень озера (обязательно)
-          --from <YYYY-MM-DD>   начало интервала рыночных дат
-          --to <YYYY-MM-DD>     конец интервала рыночных дат
+          --from <дата>         начало интервала; YYYY-MM-DD или YYYY-MM-DDTHH:MM
+          --to <дата>           конец интервала; YYYY-MM-DD или YYYY-MM-DDTHH:MM
           --known-since <дата>  брать только узнанное источником позже этого момента
           --sde <версия>        версия статических данных
+          --regions <id,...>    регионы для import-orderbook; без него — все
         """;
 
     public static CommandLine? Parse(string[] args)
@@ -53,13 +56,43 @@ public sealed record CommandLine(
             Date(values, "from") ?? new DateTimeOffset(2003, 1, 1, 0, 0, 0, TimeSpan.Zero),
             Date(values, "to") ?? new DateTimeOffset(2100, 1, 1, 0, 0, 0, TimeSpan.Zero),
             Date(values, "known-since"),
-            values.GetValueOrDefault("sde", "unknown"));
+            values.GetValueOrDefault("sde", "unknown"),
+            RegionsOf(values));
     }
 
-    public static DateTimeOffset? Date(IReadOnlyDictionary<string, string> values, string name) =>
-        values.TryGetValue(name, out var text)
-            ? new DateTimeOffset(
-                DateOnly.ParseExact(text, "yyyy-MM-dd", CultureInfo.InvariantCulture).ToDateTime(TimeOnly.MinValue),
-                TimeSpan.Zero)
-            : null;
+    /// <summary>
+    /// Регионы через запятую. Пустой список — все, какие даёт источник; для архива
+    /// стакана это миллион шестьсот тысяч ордеров на снимок, поэтому сужение названо
+    /// отдельным параметром, а не выводится из чего-то.
+    /// </summary>
+    public static IReadOnlyList<int> RegionsOf(IReadOnlyDictionary<string, string> values)
+    {
+        ArgumentNullException.ThrowIfNull(values);
+
+        return values.TryGetValue("regions", out var text)
+            ? [.. text.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(static part => int.Parse(part, CultureInfo.InvariantCulture))]
+            : [];
+    }
+
+    /// <summary>
+    /// Граница интервала. Сутками для дневной истории и с точностью до минуты для
+    /// стакана: снимков там сорок восемь в сутки, и «взять два часа» — обычная просьба,
+    /// а не экзотика.
+    /// </summary>
+    public static DateTimeOffset? Date(IReadOnlyDictionary<string, string> values, string name)
+    {
+        ArgumentNullException.ThrowIfNull(values);
+
+        return !values.TryGetValue(name, out var text)
+            ? null
+            : DateTime.TryParseExact(
+            text,
+            ["yyyy-MM-dd", "yyyy-MM-ddTHH:mm", "yyyy-MM-ddTHH:mm:ss"],
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.None,
+            out DateTime parsed)
+            ? new DateTimeOffset(parsed, TimeSpan.Zero)
+            : throw new FormatException($"Не разобрана дата '{text}' у параметра --{name}");
+    }
 }

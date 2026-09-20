@@ -124,8 +124,8 @@ public sealed class MarketHistoryCsvShould
 
             """;
 
-        MarketHistoryFormatException rejected = await Should
-            .ThrowAsync<MarketHistoryFormatException>(() => ReadAsync(csv, TestContext.Current.CancellationToken))
+        ArchiveFormatException rejected = await Should
+            .ThrowAsync<ArchiveFormatException>(() => ReadAsync(csv, TestContext.Current.CancellationToken))
             .ConfigureAwait(true);
 
         // Тип ошибки — то, по чему импорт отличает дефект данных от дефекта кода:
@@ -141,8 +141,8 @@ public sealed class MarketHistoryCsvShould
 
             """;
 
-        MarketHistoryFormatException rejected = await Should
-            .ThrowAsync<MarketHistoryFormatException>(() => ReadAsync(csv, TestContext.Current.CancellationToken))
+        ArchiveFormatException rejected = await Should
+            .ThrowAsync<ArchiveFormatException>(() => ReadAsync(csv, TestContext.Current.CancellationToken))
             .ConfigureAwait(true);
 
         rejected.Message.ShouldContain("type_id");

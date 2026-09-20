@@ -6,7 +6,6 @@ using System.Threading.Channels;
 using EveTrader.Application.History;
 using EveTrader.Domain.Facts;
 using EveTrader.Domain.History;
-using ICSharpCode.SharpZipLib.BZip2;
 using Microsoft.Extensions.Logging;
 
 namespace EveTrader.Infrastructure.Archive.EveRef;
@@ -17,14 +16,15 @@ namespace EveTrader.Infrastructure.Archive.EveRef;
 ///
 /// Вежливость здесь не украшение: параллелизм ограничен, каждый запрос условный по
 /// времени изменения, и неизменившийся файл не скачивается вовсе — источник отвечает
-/// 304 без тела.
+/// 304 без тела. Сама механика живёт в <see cref="ArchiveDownload" /> и
+/// <see cref="ArchiveRetry" />, общих со снимками стакана.
 /// </summary>
 public sealed partial class EveRefMarketHistoryArchive(
     HttpClient client,
     EveRefOptions options,
     ILogger<EveRefMarketHistoryArchive> logger) : IMarketHistorySource
 {
-    /// <summary>Имя файла и есть контракт источника — разметка страницы листинга нет.</summary>
+    /// <summary>Имя файла и есть контракт источника — разметки страницы листинга нет.</summary>
     [GeneratedRegex(@"market-history-(\d{4}-\d{2}-\d{2})\.csv\.bz2")]
     private static partial Regex ArchiveFile { get; }
 
@@ -43,7 +43,7 @@ public sealed partial class EveRefMarketHistoryArchive(
         var channel = Channel.CreateBounded<MarketHistoryObservation>(
             new BoundedChannelOptions(options.MaxParallelDownloads * 2) { SingleReader = true });
 
-        Task producer = DayPump.RunAsync(
+        Task producer = ArchivePump.RunAsync(
             channel.Writer,
             days,
             options.MaxParallelDownloads,
@@ -100,60 +100,20 @@ public sealed partial class EveRefMarketHistoryArchive(
 
     /// <summary>
     /// Скачивает и разбирает одни сутки, повторяя при обрыве. Возвращает
-    /// <see langword="null" />, если источник ответил «не изменилось» либо суток не
-    /// публикует.
-    ///
-    /// Исчерпав попытки, метод не бросает, а возвращает <see langword="null" />: одни
-    /// несостоявшиеся сутки не повод ронять прогон на восемь тысяч файлов. Пропущенные
-    /// сутки остаются без записи покрытия, а значит покрытие честно покажет их как
-    /// восполнимые — следующий прогон их и заберёт.
+    /// <see langword="null" />, если источник ответил «не изменилось», суток не
+    /// публикует либо попытки исчерпаны.
     /// </summary>
-    public async Task<MarketHistoryObservation?> FetchDayAsync(
+    public Task<MarketHistoryObservation?> FetchDayAsync(
         DateOnly day,
         MarketHistoryScope scope,
-        CancellationToken cancellationToken)
-    {
-        TimeSpan delay = options.RetryDelay;
-
-        for (var attempt = 1; ; attempt++)
-        {
-            try
-            {
-                return await FetchAttemptAsync(day, scope, cancellationToken).ConfigureAwait(false);
-            }
-            catch (Exception failure) when (attempt < options.MaxAttempts && IsTransient(failure))
-            {
-                logger.LogWarning(
-                    failure, "Сутки {Day}: попытка {Attempt} не удалась, повтор через {Delay}", day, attempt, delay);
-
-                await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
-                delay *= 2;
-            }
-            catch (Exception failure) when (IsTransient(failure))
-            {
-                logger.LogError(failure, "Сутки {Day} пропущены после {Attempts} попыток", day, options.MaxAttempts);
-
-                return null;
-            }
-            catch (MarketHistoryFormatException failure)
-            {
-                // Дефект данных источника повтором не лечится, но и ронять из-за него
-                // прогон на восемь тысяч суток нельзя: сутки пропускаются без записи
-                // покрытия, то есть покрытие честно покажет их восполнимыми.
-                logger.LogError(failure, "Сутки {Day} пропущены: файл источника не разобран", day);
-
-                return null;
-            }
-        }
-    }
-
-    /// <summary>
-    /// Обрыв загрузки, таймаут и порча архива — всё это поводы повторить. Ошибка разбора
-    /// повтором не лечится: формат файла от этого не изменится, и она разбирается
-    /// отдельно — пропуском суток.
-    /// </summary>
-    public static bool IsTransient(Exception failure) =>
-        failure is HttpRequestException or IOException or TaskCanceledException;
+        CancellationToken cancellationToken) =>
+        ArchiveRetry.RunAsync(
+            $"Сутки {day:yyyy-MM-dd}",
+            options.MaxAttempts,
+            options.RetryDelay,
+            logger,
+            token => FetchAttemptAsync(day, scope, token),
+            cancellationToken);
 
     /// <summary>
     /// Одна попытка без повтора. Публична намеренно: повтор и одна попытка — разные
@@ -166,55 +126,23 @@ public sealed partial class EveRefMarketHistoryArchive(
     {
         ArgumentNullException.ThrowIfNull(scope);
 
-        var path = $"{day.Year}/market-history-{day:yyyy-MM-dd}.csv.bz2";
-
-        using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(path, UriKind.Relative));
-
         DateTimeOffset? loadedAt = scope.LoadedAt(day);
 
-        if (loadedAt is { } since)
-        {
-            request.Headers.IfModifiedSince = since;
-        }
-
-        using HttpResponseMessage response = await client
-            .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+        (var body, DateTimeOffset lastModified, HttpStatusCode status) = await ArchiveDownload
+            .FetchAsync(client, $"{day.Year}/market-history-{day:yyyy-MM-dd}.csv.bz2", loadedAt, cancellationToken)
             .ConfigureAwait(false);
 
-        if (response.StatusCode is HttpStatusCode.NotModified)
+        if (body is null)
         {
+            if (status is HttpStatusCode.NotFound)
+            {
+                logger.LogWarning("EVE Ref не публикует сутки {Day}", day);
+            }
+
             return null;
         }
 
-        if (response.StatusCode is HttpStatusCode.NotFound)
-        {
-            logger.LogWarning("EVE Ref не публикует сутки {Day}", day);
-
-            return null;
-        }
-
-        _ = response.EnsureSuccessStatusCode();
-
-        DateTimeOffset lastModified = response.Content.Headers.LastModified ?? DateTimeOffset.UnixEpoch;
-
-        // Файл скачивается целиком, и только потом распаковывается.
-        //
-        // Распаковка прямо из сокета выглядит экономнее, но обрыв соединения приходит в
-        // ней не сетевой ошибкой, которую можно повторить, а порчей архива: BZip2 падает
-        // на «end of compressed stream», и повторять уже нечего — поток проглочен. Файл
-        // здесь меньше мегабайта, так что буфер ничего не стоит, зато обрыв виден как
-        // обрыв и чинится повтором.
-        var body = await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
-
-        if (response.Content.Headers.ContentLength is { } declared && body.LongLength != declared)
-        {
-            throw new EndOfStreamException(
-                $"Сутки {day:yyyy-MM-dd}: источник объявил {declared} байт, получено {body.LongLength}");
-        }
-
-        using var compressed = new MemoryStream(body, writable: false);
-        await using var decompressed = new BZip2InputStream(compressed);
-        using var reader = new StreamReader(decompressed);
+        using StreamReader reader = ArchiveDownload.Read(body);
 
         var rows = new List<MarketHistoryRow>();
         var regions = new HashSet<RegionId>();

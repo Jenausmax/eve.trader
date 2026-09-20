@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\infrastructure\EveTrader.Infrastructure.Archive\EveTrader.Infrastructure.Archive.csproj" />
+    <ProjectReference Include="..\..\..\src\infrastructure\EveTrader.Infrastructure.Facts\EveTrader.Infrastructure.Facts.csproj" />
+  </ItemGroup>
+
+</Project>

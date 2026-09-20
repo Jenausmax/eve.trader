@@ -1,6 +1,8 @@
 using System.Globalization;
+using EveTrader.Application.Book;
 using EveTrader.Application.History;
 using EveTrader.Cli;
+using EveTrader.Domain.Book;
 using EveTrader.Domain.Facts;
 using EveTrader.Infrastructure.Archive.EveRef;
 using EveTrader.Infrastructure.Facts.Lake;
@@ -47,7 +49,7 @@ switch (options.Command)
         {
             var everef = new EveRefOptions();
 
-            using var client = new HttpClient { BaseAddress = everef.BaseAddress };
+            using var client = new HttpClient { BaseAddress = everef.HistoryBaseAddress };
             client.DefaultRequestHeaders.Add("User-Agent", everef.UserAgent);
             client.Timeout = TimeSpan.FromMinutes(5);
 
@@ -69,6 +71,47 @@ switch (options.Command)
             Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"строк записано:      {report.RowsWritten}"));
             Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"регионов встречено:  {report.Regions}"));
             Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"типов встречено:     {report.Types}"));
+
+            return 0;
+        }
+
+    case "import-orderbook":
+        {
+            var everef = new EveRefOptions();
+
+            using var client = new HttpClient { BaseAddress = everef.OrdersBaseAddress };
+            client.DefaultRequestHeaders.Add("User-Agent", everef.UserAgent);
+            client.Timeout = TimeSpan.FromMinutes(10);
+
+            var archive = new EveRefOrderBookArchive(
+                client, everef, loggerFactory.CreateLogger<EveRefOrderBookArchive>());
+
+            var derivation = new ObservationDerivation(writer, new DailyCheckpointPolicy());
+
+            var import = new OrderBookImport(
+                derivation, registry, coverage, TimeProvider.System,
+                loggerFactory.CreateLogger<OrderBookImport>());
+
+            OrderBookImportReport orders = await import.RunAsync(
+                archive,
+                new OrderBookScope(
+                    TimeRange.Between(options.From, options.To),
+                    [.. options.Regions.Select(RegionId.From)]),
+                DiffOptions.Default,
+                FeatureOptions.Default,
+                StaticDataVersion.From(options.StaticData),
+                cancellation.Token).ConfigureAwait(false);
+
+            Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"источник:            {orders.Source}"));
+            Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"снимков публикуется: {orders.SnapshotsPublished}"));
+            Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"снимков свёрнуто:    {orders.SnapshotsRead}"));
+            Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"продолжено с:        {orders.ResumedFrom:yyyy-MM-dd HH:mm:ss}"));
+            Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"наблюдений записано: {orders.ObservationsWritten}"));
+            Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"наблюдений уже было: {orders.ObservationsAlreadyPresent}"));
+            Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"событий записано:    {orders.EventsWritten}"));
+            Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"пропусков источника: {orders.SourceGaps}"));
+            Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"регионов:            {orders.Regions}"));
+            Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"суток:               {orders.Days}"));
 
             return 0;
         }

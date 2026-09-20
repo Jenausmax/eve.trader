@@ -11,6 +11,10 @@ namespace EveTrader.Application.Book;
 ///
 /// Наборы разные, наблюдение одно. Подтверждать их порознь нельзя — часть осталась бы
 /// невидимой, а «факт — строка, подтверждённая покрытием» перестало бы выполняться.
+///
+/// Имя источника приезжает аргументом: запись покрытия обязана его назвать — иначе
+/// происхождение факта негде было бы узнать, а одна и та же свёртка обслуживает и архив,
+/// и живой сбор.
 /// </summary>
 public sealed class ObservationDerivation(IFactWriter writer, DailyCheckpointPolicy checkpoints)
 {
@@ -20,6 +24,7 @@ public sealed class ObservationDerivation(IFactWriter writer, DailyCheckpointPol
         IReadOnlyList<OrderSnapshot> book,
         FeatureOptions featureOptions,
         StaticDataVersion staticData,
+        string source,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(meta);
@@ -54,7 +59,7 @@ public sealed class ObservationDerivation(IFactWriter writer, DailyCheckpointPol
                 meta.Region, meta.Observation, observedDate, book.ToArray(), meta, staticData));
         }
 
-        IReadOnlyList<CoverageEntry> coverage = [Coverage(meta, outcome)];
+        IReadOnlyList<CoverageEntry> coverage = [Coverage(meta, outcome, source)];
 
         FactWriteOutcome written = await writer
             .WriteAllAsync(batches, coverage, cancellationToken)
@@ -68,7 +73,7 @@ public sealed class ObservationDerivation(IFactWriter writer, DailyCheckpointPol
         return written;
     }
 
-    public static CoverageEntry Coverage(ObservationMeta meta, ObservationOutcome outcome)
+    public static CoverageEntry Coverage(ObservationMeta meta, ObservationOutcome outcome, string source)
     {
         ArgumentNullException.ThrowIfNull(meta);
         ArgumentNullException.ThrowIfNull(outcome);
@@ -76,11 +81,11 @@ public sealed class ObservationDerivation(IFactWriter writer, DailyCheckpointPol
         return meta.IsComplete
             ? CoverageEntries.Success(
                 meta.Observation, meta.Region, meta.Collected, pages: 1, orderCount: outcome.OrdersSeen,
-                source: "observer", observationStep: meta.Step, knownAt: meta.Collected.To,
+                source: source, observationStep: meta.Step, knownAt: meta.Collected.To,
                 sourceGaps: outcome.SourceGaps)
             : CoverageEntries.Partial(
                 meta.Observation, meta.Region, meta.Collected, pagesReceived: 1, pagesExpected: 2,
-                orderCount: outcome.OrdersSeen, source: "observer", observationStep: meta.Step,
+                orderCount: outcome.OrdersSeen, source: source, observationStep: meta.Step,
                 knownAt: meta.Collected.To);
     }
 }
