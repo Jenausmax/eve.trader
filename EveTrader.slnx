@@ -25,6 +25,7 @@
   <Folder Name="/tests/integration/">
     <Project Path="tests/integration/EveTrader.Application.Integration.Book/EveTrader.Application.Integration.Book.csproj" />
     <Project Path="tests/integration/EveTrader.Application.Integration.History/EveTrader.Application.Integration.History.csproj" />
+    <Project Path="tests/integration/EveTrader.Application.Integration.Live/EveTrader.Application.Integration.Live.csproj" />
     <Project Path="tests/integration/EveTrader.Application.Integration.OrderBook/EveTrader.Application.Integration.OrderBook.csproj" />
     <Project Path="tests/integration/EveTrader.Application.Integration.Workers/EveTrader.Application.Integration.Workers.csproj" />
     <Project Path="tests/integration/EveTrader.Infrastructure.Facts.Integration/EveTrader.Infrastructure.Facts.Integration.csproj" />
@@ -33,5 +34,6 @@
     <Project Path="tests/unit/EveTrader.Application.Unit/EveTrader.Application.Unit.csproj" />
     <Project Path="tests/unit/EveTrader.Domain.Unit/EveTrader.Domain.Unit.csproj" />
     <Project Path="tests/unit/EveTrader.Infrastructure.Archive.Unit/EveTrader.Infrastructure.Archive.Unit.csproj" />
+    <Project Path="tests/unit/EveTrader.Infrastructure.Esi.Unit/EveTrader.Infrastructure.Esi.Unit.csproj" />
   </Folder>
 </Solution>

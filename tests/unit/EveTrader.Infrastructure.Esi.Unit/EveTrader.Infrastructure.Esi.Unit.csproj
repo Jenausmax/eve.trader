@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\infrastructure\EveTrader.Infrastructure.Esi\EveTrader.Infrastructure.Esi.csproj" />
+  </ItemGroup>
+
+</Project>

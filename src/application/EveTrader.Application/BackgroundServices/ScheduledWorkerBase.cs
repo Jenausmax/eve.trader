@@ -21,6 +21,12 @@ public abstract class ScheduledWorkerBase(
     IDiagnosticSource? diagnostics,
     ILogger logger) : BackgroundService
 {
+    /// <summary>
+    /// Часы. Наследникам они нужны так же, как базе, а второй <see cref="TimeProvider" />
+    /// полем разошёлся бы с этим при подмене в тесте — и разошёлся бы молча.
+    /// </summary>
+    protected TimeProvider Clock => clock;
+
     /// <summary>Имя воркера в логах и в именах счётчиков.</summary>
     protected abstract string WorkerName { get; }
 

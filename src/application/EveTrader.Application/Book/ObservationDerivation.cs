@@ -25,7 +25,8 @@ public sealed class ObservationDerivation(IFactWriter writer, DailyCheckpointPol
         FeatureOptions featureOptions,
         StaticDataVersion staticData,
         string source,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        (int Received, int Expected) pages = default)
     {
         ArgumentNullException.ThrowIfNull(meta);
         ArgumentNullException.ThrowIfNull(outcome);
@@ -59,7 +60,7 @@ public sealed class ObservationDerivation(IFactWriter writer, DailyCheckpointPol
                 meta.Region, meta.Observation, observedDate, book.ToArray(), meta, staticData));
         }
 
-        IReadOnlyList<CoverageEntry> coverage = [Coverage(meta, outcome, source)];
+        IReadOnlyList<CoverageEntry> coverage = [Coverage(meta, outcome, source, pages)];
 
         FactWriteOutcome written = await writer
             .WriteAllAsync(batches, coverage, cancellationToken)
@@ -73,18 +74,44 @@ public sealed class ObservationDerivation(IFactWriter writer, DailyCheckpointPol
         return written;
     }
 
-    public static CoverageEntry Coverage(ObservationMeta meta, ObservationOutcome outcome, string source)
+    /// <summary>
+    /// Записывает покрытие без строк данных — ответ «не изменилось» или отказ.
+    ///
+    /// Наблюдение при этом состоялось (или не состоялось, и это тоже надо знать), а
+    /// событий в нём нет. Без такой записи пробел в данных выглядел бы рыночным фактом.
+    /// </summary>
+    public Task<FactWriteOutcome> WriteCoverageOnlyAsync(
+        CoverageEntry coverage,
+        CancellationToken cancellationToken) =>
+        writer.WriteCoverageOnlyAsync([coverage], cancellationToken);
+
+    /// <param name="meta">Наблюдение.</param>
+    /// <param name="outcome">Итог свёртки.</param>
+    /// <param name="source">Источник; попадает в запись покрытия.</param>
+    /// <param name="pages">
+    /// Сколько страниц получено и сколько объявил источник. Для источников без пагинации
+    /// (архивный снимок — один файл) это одна страница из одной.
+    /// </param>
+    public static CoverageEntry Coverage(
+        ObservationMeta meta,
+        ObservationOutcome outcome,
+        string source,
+        (int Received, int Expected) pages)
     {
         ArgumentNullException.ThrowIfNull(meta);
         ArgumentNullException.ThrowIfNull(outcome);
 
         return meta.IsComplete
             ? CoverageEntries.Success(
-                meta.Observation, meta.Region, meta.Collected, pages: 1, orderCount: outcome.OrdersSeen,
-                source: source, observationStep: meta.Step, knownAt: meta.Collected.To,
-                sourceGaps: outcome.SourceGaps)
+                meta.Observation, meta.Region, meta.Collected, pages: Math.Max(1, pages.Received),
+                orderCount: outcome.OrdersSeen, source: source, observationStep: meta.Step,
+                knownAt: meta.Collected.To, sourceGaps: outcome.SourceGaps)
             : CoverageEntries.Partial(
-                meta.Observation, meta.Region, meta.Collected, pagesReceived: 1, pagesExpected: 2,
+                meta.Observation, meta.Region, meta.Collected,
+                pagesReceived: pages.Received,
+                // Объявленное число обязано быть больше полученного — иначе наблюдение
+                // не частичное. Источник без пагинации сюда не попадает.
+                pagesExpected: Math.Max(pages.Expected, pages.Received + 1),
                 orderCount: outcome.OrdersSeen, source: source, observationStep: meta.Step,
                 knownAt: meta.Collected.To);
     }
