@@ -23,3 +23,4 @@ coverage*.json
 
 # macos
 .DS_Store
+.agents/worktree/
