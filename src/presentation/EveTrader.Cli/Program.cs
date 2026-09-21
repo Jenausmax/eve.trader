@@ -1,6 +1,7 @@
 using System.Globalization;
 using EveTrader.Application.Book;
 using EveTrader.Application.History;
+using EveTrader.Application.Intake;
 using EveTrader.Cli;
 using EveTrader.Domain.Book;
 using EveTrader.Domain.Facts;
@@ -86,11 +87,12 @@ switch (options.Command)
             var archive = new EveRefOrderBookArchive(
                 client, everef, loggerFactory.CreateLogger<EveRefOrderBookArchive>());
 
-            var derivation = new ObservationDerivation(writer, new DailyCheckpointPolicy());
+            var intake = new ObservationIntake(
+                new ObservationDerivation(writer, new DailyCheckpointPolicy()),
+                loggerFactory.CreateLogger<ObservationIntake>());
 
             var import = new OrderBookImport(
-                derivation, registry, coverage, TimeProvider.System,
-                loggerFactory.CreateLogger<OrderBookImport>());
+                intake, coverage, registry, TimeProvider.System, loggerFactory);
 
             OrderBookImportReport orders = await import.RunAsync(
                 archive,

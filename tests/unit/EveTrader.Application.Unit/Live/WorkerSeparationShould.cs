@@ -2,6 +2,7 @@ using System.Reflection;
 using EveTrader.Application.BackgroundServices;
 using EveTrader.Application.Book;
 using EveTrader.Application.Facts;
+using EveTrader.Application.Intake;
 using EveTrader.Application.Live;
 using EveTrader.Application.Workers;
 using EveTrader.Domain.Scope;
@@ -74,18 +75,18 @@ public sealed class WorkerSeparationShould
     private static MarketObservationWorker Observation()
     {
         ServiceProvider services = new ServiceCollection().BuildServiceProvider();
-        var derivation = new ObservationDerivation(
-            Substitute.For<IFactWriter>(), new DailyCheckpointPolicy());
+        var intake = new ObservationIntake(
+            new ObservationDerivation(Substitute.For<IFactWriter>(), new DailyCheckpointPolicy()),
+            NullLogger<ObservationIntake>.Instance);
 
         var collector = new LiveCollector(
             Substitute.For<IRegionBookPoller>(),
-            derivation,
+            intake,
             new ScopeHistory(),
             new RegionViability(),
             new ObservationSchedule(),
             [],
-            TimeProvider.System,
-            NullLogger<LiveCollector>.Instance);
+            TimeProvider.System);
 
         return new MarketObservationWorker(
             services, collector, new ObservationOptions(), TimeProvider.System, null,

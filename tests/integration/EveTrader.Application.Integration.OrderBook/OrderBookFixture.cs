@@ -1,4 +1,5 @@
 using EveTrader.Application.Book;
+using EveTrader.Application.Intake;
 using EveTrader.Domain.Book;
 using EveTrader.Domain.Facts;
 using EveTrader.Infrastructure.Archive.EveRef;
@@ -66,11 +67,13 @@ internal sealed class OrderBookFixture : IDisposable
     /// </summary>
     public OrderBookImport Import() =>
         new(
-            new ObservationDerivation(Writer, new DailyCheckpointPolicy()),
-            Registry,
+            new ObservationIntake(
+                new ObservationDerivation(Writer, new DailyCheckpointPolicy()),
+                NullLogger<ObservationIntake>.Instance),
             Coverage,
+            Registry,
             TimeProvider.System,
-            NullLogger<OrderBookImport>.Instance);
+            NullLoggerFactory.Instance);
 
     public Task<OrderBookImportReport> RunAsync(
         IOrderBookSource source,
