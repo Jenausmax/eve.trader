@@ -43,7 +43,7 @@ internal static class WorkerCounters
                 continue;
             }
 
-            diagnostics?.Add($"worker.{workerName}.{attribute.Name}", counted);
+            diagnostics?.Counter($"worker.{workerName}.{attribute.Name}", "{items}").Add(counted);
 
             if (counted > 0)
             {
@@ -54,6 +54,11 @@ internal static class WorkerCounters
         return didWork;
     }
 
+    /// <summary>
+    /// Исход цикла. Двумя счётчиками, а не одним с тегом: тег теряется в любом читателе,
+    /// который смотрит на инструмент целиком, — а «сколько циклов упало» спрашивают
+    /// именно так.
+    /// </summary>
     public static void EmitOutcome(IDiagnosticSource? diagnostics, string workerName, bool failed) =>
-        diagnostics?.Add($"worker.{workerName}.outcome.{(failed ? "failed" : "succeeded")}", 1);
+        diagnostics?.Counter($"worker.{workerName}.outcome.{(failed ? "failed" : "succeeded")}", "{cycles}").Add(1);
 }

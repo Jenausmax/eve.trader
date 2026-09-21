@@ -1,9 +1,16 @@
 using System.Globalization;
 using System.Text;
+using EveTrader.Application.Book;
+using EveTrader.Application.Diagnostics;
+using EveTrader.Application.Intake;
 using EveTrader.Application.Live;
+using EveTrader.Application.Reporting;
 using EveTrader.Domain.Facts;
+using EveTrader.Domain.Scope;
 using EveTrader.Infrastructure.Esi;
 using EveTrader.Infrastructure.Esi.Orders;
+using EveTrader.Infrastructure.Facts.Lake;
+using EveTrader.Infrastructure.Facts.Query;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace EveTrader.Application.Integration.Live;
@@ -44,9 +51,29 @@ internal sealed class LiveFixture : IDisposable
             BaseAddress = new Uri("https://esi.evetech.net/latest/"),
         };
 
+        // Своё имя метрики на фикстуру: инструменты процессные, и фикстуры,
+        // работающие одновременно, складывали бы замеры друг другу.
+        Telemetry = new MeterDiagnosticSource($"EveTrader.Test.{Guid.NewGuid():N}");
+        Diagnostics = new ObservationDiagnostics(Telemetry);
+        Metrics = new MetricExport(Telemetry.ModuleName);
+
         Poller = new EsiRegionBookPoller(
-            client, new EsiOptions(), Budget, Clock, RawPages,
+            client, new EsiOptions(), Budget, Clock, RawPages, Diagnostics,
             NullLogger<EsiRegionBookPoller>.Instance);
+
+        LakeRoot = Path.Combine(Path.GetTempPath(), "eve-trader-live", Guid.NewGuid().ToString("N"));
+        Layout = new LakeLayout(new LakeOptions { Root = LakeRoot });
+        Coverage = new ParquetCoverageLog(Layout);
+        Writer = new ParquetFactWriter(Layout, Coverage);
+        Registry = new ParquetMaterializationRegistry(Layout);
+
+        Intake = new ObservationIntake(
+            new ObservationDerivation(Writer, new DailyCheckpointPolicy()),
+            Diagnostics,
+            NullLogger<ObservationIntake>.Instance);
+
+        Reports = new DuckDbOperationalReportReader(Layout, Coverage, Registry, UpstreamCatalog.Empty);
+        Usage = new ResourceUsageReport(Reports, RawPages);
     }
 
     public static DateTimeOffset Start { get; } = new(2026, 1, 1, 12, 0, 0, TimeSpan.Zero);
@@ -63,7 +90,52 @@ internal sealed class LiveFixture : IDisposable
 
     public StubEsiOrders Stub { get; } = new();
 
+    public MeterDiagnosticSource Telemetry { get; }
+
+    public ObservationDiagnostics Diagnostics { get; }
+
+    public MetricExport Metrics { get; }
+
     public EsiRegionBookPoller Poller { get; }
+
+    public string LakeRoot { get; }
+
+    public LakeLayout Layout { get; }
+
+    public ParquetCoverageLog Coverage { get; }
+
+    public ParquetFactWriter Writer { get; }
+
+    public ParquetMaterializationRegistry Registry { get; }
+
+    public ObservationIntake Intake { get; }
+
+    public DuckDbOperationalReportReader Reports { get; }
+
+    public ResourceUsageReport Usage { get; }
+
+    /// <summary>
+    /// Сбор поверх этой фикстуры. Охват задаётся явно: пригодность определяется
+    /// наблюдением, а наблюдаются только пригодные, и без затравки первый цикл не
+    /// наблюдал бы ничего.
+    /// </summary>
+    public LiveCollector Collector(params RegionId[] regions)
+    {
+        ArgumentNullException.ThrowIfNull(regions);
+
+        var scope = new ScopeHistory();
+        scope.Record(new PolicyChange(ScopePolicy.Of(regions, TimeSpan.FromMinutes(5)), Start.AddMinutes(-1)));
+
+        var viability = new RegionViability();
+
+        foreach (RegionId region in regions)
+        {
+            viability.Observed(region, 1);
+        }
+
+        return new LiveCollector(
+            Poller, Intake, scope, viability, new ObservationSchedule(), regions, Clock);
+    }
 
     /// <summary>Страница ордеров в формате ответа ESI.</summary>
     public static string Page(params (long Id, decimal Price, long Remain, bool IsBuy)[] orders)
@@ -92,9 +164,17 @@ internal sealed class LiveFixture : IDisposable
 
     public void Dispose()
     {
+        Metrics.Dispose();
+        Telemetry.Dispose();
+
         if (Directory.Exists(RawRoot))
         {
             Directory.Delete(RawRoot, recursive: true);
+        }
+
+        if (Directory.Exists(LakeRoot))
+        {
+            Directory.Delete(LakeRoot, recursive: true);
         }
     }
 }

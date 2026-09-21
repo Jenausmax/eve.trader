@@ -1,4 +1,5 @@
 using EveTrader.Application.Book;
+using EveTrader.Application.Diagnostics;
 using EveTrader.Application.Intake;
 using EveTrader.Application.Replay;
 using EveTrader.Domain.Book;
@@ -28,6 +29,7 @@ internal sealed class ReplayLake : IDisposable
 
         Intake = new ObservationIntake(
             new ObservationDerivation(Writer, new DailyCheckpointPolicy()),
+            new ObservationDiagnostics(new MeterDiagnosticSource()),
             NullLogger<ObservationIntake>.Instance);
     }
 

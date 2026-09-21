@@ -2,7 +2,6 @@ using System.Reflection;
 using EveTrader.Application.BackgroundServices;
 using EveTrader.Application.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
-using NSubstitute;
 using Shouldly;
 
 namespace EveTrader.Application.Unit.BackgroundServices;
@@ -28,37 +27,52 @@ public sealed class ScheduledWorkerBaseShould
         seen.Distinct().Count().ShouldBe(3);
     }
 
+    /// <summary>
+    /// Счётчики проверяются через подписчика на инструменты, а не через подменённый
+    /// источник: подмена доказывает, что метод позвали, а вопрос стоит в том, доехал ли
+    /// замер до экспорта.
+    /// </summary>
     [Fact]
     public async Task EmitCountersAndSuccessOutcomeWhenCycleSucceeds()
     {
-        IDiagnosticSource diagnostics = Substitute.For<IDiagnosticSource>();
+        using var telemetry = new MeterDiagnosticSource(Isolated());
+        using var export = new MetricExport(telemetry.ModuleName);
+
         TestWorker worker = BuildWorker(
             new CountingSchedule(cycles: 1),
             cycle: static (_, _) => new TestCounters(Processed: 7, Failed: 2),
-            diagnostics: diagnostics);
+            diagnostics: telemetry);
 
         await RunAsync(worker, TestContext.Current.CancellationToken).ConfigureAwait(true);
 
-        diagnostics.Received(1).Add("worker.Test.processed", 7);
-        diagnostics.Received(1).Add("worker.Test.failed", 2);
-        diagnostics.Received(1).Add("worker.Test.outcome.succeeded", 1);
-        diagnostics.DidNotReceive().Add("worker.Test.outcome.failed", Arg.Any<long>());
+        export.TotalOf("worker.Test.processed").ShouldBe(7d);
+        export.TotalOf("worker.Test.failed").ShouldBe(2d);
+        export.TotalOf("worker.Test.outcome.succeeded").ShouldBe(1d);
+        export.CountOf("worker.Test.outcome.failed").ShouldBe(0L);
     }
 
     [Fact]
     public async Task EmitFailureOutcomeWhenCycleThrows()
     {
-        IDiagnosticSource diagnostics = Substitute.For<IDiagnosticSource>();
+        using var telemetry = new MeterDiagnosticSource(Isolated());
+        using var export = new MetricExport(telemetry.ModuleName);
+
         TestWorker worker = BuildWorker(
             new CountingSchedule(cycles: 1),
             cycle: static (_, _) => throw new InvalidOperationException("цикл упал"),
-            diagnostics: diagnostics);
+            diagnostics: telemetry);
 
         await RunAsync(worker, TestContext.Current.CancellationToken).ConfigureAwait(true);
 
-        diagnostics.Received(1).Add("worker.Test.outcome.failed", 1);
-        diagnostics.DidNotReceive().Add("worker.Test.outcome.succeeded", Arg.Any<long>());
+        export.TotalOf("worker.Test.outcome.failed").ShouldBe(1d);
+        export.CountOf("worker.Test.outcome.succeeded").ShouldBe(0L);
     }
+
+    /// <summary>
+    /// Своё имя счётчика на тест: инструменты процессные, и тесты, идущие
+    /// одновременно, складывали бы замеры друг другу.
+    /// </summary>
+    private static string Isolated() => $"EveTrader.Test.{Guid.NewGuid():N}";
 
     [Fact]
     public async Task ContinueToNextCycleAfterException()

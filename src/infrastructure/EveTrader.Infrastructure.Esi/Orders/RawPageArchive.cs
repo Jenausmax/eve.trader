@@ -1,5 +1,6 @@
 using System.Globalization;
 using EveTrader.Application.Live;
+using EveTrader.Application.Reporting;
 using EveTrader.Domain.Facts;
 
 namespace EveTrader.Infrastructure.Esi.Orders;
@@ -10,7 +11,7 @@ namespace EveTrader.Infrastructure.Esi.Orders;
 /// Лежат вне <c>facts/</c> намеренно — это не факты, а материал для разбора дефектов
 /// парсера, и ни один путь чтения фактов их не касается.
 /// </summary>
-public sealed class RawPageArchive(string root) : IRawPageArchive
+public sealed class RawPageArchive(string root) : IRawPageArchive, IRawTrafficMeter
 {
     public string Root { get; } = root;
 
@@ -66,6 +67,43 @@ public sealed class RawPageArchive(string root) : IRawPageArchive
         }
 
         return Task.FromResult(removed);
+    }
+
+    public Task<RawPageUsage> MeasureAsync(TimeRange within, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (!Directory.Exists(Root))
+        {
+            return Task.FromResult(new RawPageUsage(0, 0, null));
+        }
+
+        var pages = 0;
+        var bytes = 0L;
+        DateTimeOffset? earliest = null;
+
+        foreach (var hour in Directory.EnumerateDirectories(Root, "*", SearchOption.AllDirectories))
+        {
+            // Час целиком или никак: страницы внутри часа лежат под именем региона,
+            // а не под временем получения, и точнее окно не нарезается.
+            if (HourOf(hour) is not { } at || at < within.From.AddHours(-1) || at > within.To)
+            {
+                continue;
+            }
+
+            foreach (var file in Directory.EnumerateFiles(hour))
+            {
+                pages++;
+                bytes += new FileInfo(file).Length;
+            }
+
+            if (earliest is null || at < earliest)
+            {
+                earliest = at;
+            }
+        }
+
+        return Task.FromResult(new RawPageUsage(pages, bytes, earliest));
     }
 
     public string HourDirectory(DateTimeOffset at) =>

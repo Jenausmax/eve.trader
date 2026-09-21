@@ -1,6 +1,7 @@
 using System.Reflection;
 using EveTrader.Application.BackgroundServices;
 using EveTrader.Application.Book;
+using EveTrader.Application.Diagnostics;
 using EveTrader.Application.Facts;
 using EveTrader.Application.Intake;
 using EveTrader.Application.Live;
@@ -77,6 +78,7 @@ public sealed class WorkerSeparationShould
         ServiceProvider services = new ServiceCollection().BuildServiceProvider();
         var intake = new ObservationIntake(
             new ObservationDerivation(Substitute.For<IFactWriter>(), new DailyCheckpointPolicy()),
+            new ObservationDiagnostics(new MeterDiagnosticSource()),
             NullLogger<ObservationIntake>.Instance);
 
         var collector = new LiveCollector(

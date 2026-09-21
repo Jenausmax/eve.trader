@@ -1,14 +1,23 @@
 namespace EveTrader.Application.Diagnostics;
 
 /// <summary>
-/// Точка эмиссии телеметрии. Контракт умышленно узкий: ровно то, что нужно
-/// <see cref="BackgroundServices.ScheduledWorkerBase" />. Полный контракт из
-/// <c>.agents/rules/observability/diagnostics.md</c> добирается в
-/// <c>add-pipeline-acceptance</c>, где по метрикам начинают принимать решения.
+/// Точка эмиссии телеметрии по контракту <c>.agents/rules/observability/diagnostics.md</c>:
+/// области операций и заранее объявленные инструменты.
+///
+/// Инструменты берутся отсюда один раз — при сборке модульной диагностики
+/// (<see cref="IObservationDiagnostics" />), а не по месту вызова: счётчик, созданный
+/// в теле метода, регистрируется новым инструментом на каждом вызове.
 /// </summary>
 public interface IDiagnosticSource
 {
-    IOperationScope Operation(string name);
+    /// <summary>Имя модуля; попадает в имя <c>Meter</c> и в теги.</summary>
+    string ModuleName { get; }
 
-    void Add(string counterName, long value);
+    IOperationScopeBuilder Operation(string name);
+
+    ITelemetryCounter Counter(string name, string unit);
+
+    ITelemetryHistogram Histogram(string name, string unit);
+
+    ITelemetryGauge Gauge(string name, string unit);
 }

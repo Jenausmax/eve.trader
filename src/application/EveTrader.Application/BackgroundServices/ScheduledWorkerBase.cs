@@ -52,7 +52,13 @@ public abstract class ScheduledWorkerBase(
 
                 await using (AsyncServiceScope scope = services.CreateAsyncScope())
                 {
-                    IOperationScope? operation = diagnostics?.Operation($"worker.{WorkerName}.cycle");
+                    // Ручная сборка области, а не RunAsync: у цикла воркера отмена —
+                    // штатный выход хоста, а не отказ, и время жизни области не совпадает
+                    // с одним try/catch, в котором любое исключение красит операцию красным.
+                    IOperationScope? operation = diagnostics
+                        ?.Operation($"worker.{WorkerName}.cycle")
+                        .WithTag("worker.name", WorkerName)
+                        .Build();
 
                     try
                     {

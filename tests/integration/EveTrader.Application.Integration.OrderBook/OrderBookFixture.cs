@@ -1,4 +1,5 @@
 using EveTrader.Application.Book;
+using EveTrader.Application.Diagnostics;
 using EveTrader.Application.Intake;
 using EveTrader.Domain.Book;
 using EveTrader.Domain.Facts;
@@ -69,6 +70,7 @@ internal sealed class OrderBookFixture : IDisposable
         new(
             new ObservationIntake(
                 new ObservationDerivation(Writer, new DailyCheckpointPolicy()),
+                new ObservationDiagnostics(new MeterDiagnosticSource()),
                 NullLogger<ObservationIntake>.Instance),
             Coverage,
             Registry,

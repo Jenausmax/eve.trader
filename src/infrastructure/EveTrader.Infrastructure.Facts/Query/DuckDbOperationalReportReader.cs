@@ -85,6 +85,60 @@ public sealed class DuckDbOperationalReportReader(
         return rows;
     }
 
+    /// <summary>
+    /// Расход источника за интервал.
+    ///
+    /// Запросов считается не меньше одного на попытку: ответ «не изменилось» и отказ
+    /// страниц не приносят, а запрос на них ушёл, и отчёт, в котором условные ответы
+    /// бесплатны, врёт ровно в ту сторону, в какую удобно.
+    /// </summary>
+    public async Task<SourceUsageCounts> SourceUsageAsync(TimeRange observed, CancellationToken cancellationToken)
+    {
+        if (!layout.HasFiles(FactSet.Coverage))
+        {
+            return default;
+        }
+
+        var sql =
+            $"""
+             SELECT count(*) AS observations,
+                    sum(greatest({CoverageSchema.PagesReceived}, 1)) AS requests,
+                    count(*) FILTER (WHERE {CoverageSchema.Outcome} = {(int)CoverageOutcome.NotModified}) AS not_modified,
+                    count(*) FILTER (WHERE {CoverageSchema.Outcome} = {(int)CoverageOutcome.Failure}) AS failed
+             FROM read_parquet({DuckDb.Literal(layout.SetGlob(FactSet.Coverage))}, hive_partitioning = 1)
+             WHERE {CoverageSchema.CollectedFrom} < {DuckDb.Timestamp(observed.To)}
+               AND {CoverageSchema.CollectedTo} > {DuckDb.Timestamp(observed.From)}
+             """;
+
+        await using DuckDBConnection connection = DuckDb.Open();
+        await using DuckDBCommand command = connection.CreateCommand();
+
+        // CA2100: путь к озеру приходит из конфигурации, не от пользователя, и проходит
+        // через DuckDb.Literal; read_parquet принимает путь только литералом.
+#pragma warning disable CA2100
+        command.CommandText = sql;
+#pragma warning restore CA2100
+
+        await using DbDataReader reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+
+        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            return default;
+        }
+
+        // sum() по пустой выборке возвращает NULL, а не ноль: без проверки отчёт о
+        // расходе за интервал без наблюдений падал бы вместо того, чтобы сказать «ноль».
+        var requests = await reader.IsDBNullAsync(1, cancellationToken).ConfigureAwait(false)
+            ? 0L
+            : DuckDb.ToInt64(reader.GetValue(1));
+
+        return new SourceUsageCounts(
+            DuckDb.ToInt64(reader.GetValue(0)),
+            requests,
+            DuckDb.ToInt64(reader.GetValue(2)),
+            DuckDb.ToInt64(reader.GetValue(3)));
+    }
+
     /// <summary>Счётчики покрытия по регионам — агрегация средствами хранилища.</summary>
     public async Task<IReadOnlyDictionary<RegionId, CoverageCounts>> CountsAsync(
         TimeRange observed,

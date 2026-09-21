@@ -1,4 +1,5 @@
 using EveTrader.Application.Book;
+using EveTrader.Application.Diagnostics;
 using EveTrader.Application.Facts;
 using EveTrader.Domain.Book;
 using EveTrader.Domain.Coverage;
@@ -14,7 +15,10 @@ namespace EveTrader.Application.Intake;
 /// источники. Наблюдатели держатся по региону и живут весь прогон: исчезновение
 /// выводится не из пары снимков, а из нескольких подряд.
 /// </summary>
-public sealed class ObservationIntake(ObservationDerivation derivation, ILogger<ObservationIntake> logger)
+public sealed class ObservationIntake(
+    ObservationDerivation derivation,
+    IObservationDiagnostics diagnostics,
+    ILogger<ObservationIntake> logger)
 {
     public async Task<IntakeReport> RunAsync(
         IObservationSource source,
@@ -98,6 +102,18 @@ public sealed class ObservationIntake(ObservationDerivation derivation, ILogger<
             written++;
             events += outcome.Events.Count;
             gaps += outcome.SourceGaps;
+
+            // Доля изменившихся ордеров считается здесь, а не у источника: только после
+            // свёртки известно, сколько ордеров наблюдение реально затронуло. По этому
+            // числу и сходится бюджет объёма — оценка была 5–15 %.
+            diagnostics.ChangedOrderFraction
+                .WithTag("source", source.Name)
+                .Record(outcome.Events.Count / (double)Math.Max(1, outcome.OrdersSeen));
+
+            if (outcome.SourceGaps > 0)
+            {
+                diagnostics.SourceGaps.WithTag("source", source.Name).Add(outcome.SourceGaps);
+            }
 
             if (observation.Outcome == CoverageOutcome.Partial)
             {

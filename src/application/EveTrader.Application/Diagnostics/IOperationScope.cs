@@ -7,7 +7,14 @@ namespace EveTrader.Application.Diagnostics;
 /// </summary>
 public interface IOperationScope : IDisposable
 {
+    /// <summary>Тег на саму операцию; читается в трассировке рядом с исходом.</summary>
+    IOperationScope WithTag(string key, object? value);
+
     void Succeeded();
 
+    /// <summary>
+    /// Отказ: исключение попадает и в статус, и в событие трассировки. Одного статуса
+    /// мало — в нём нет ни типа исключения, ни стека.
+    /// </summary>
     void Failed(Exception exception);
 }

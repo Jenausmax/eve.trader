@@ -18,7 +18,7 @@ public sealed class ScheduledWorkerHostingShould
     [Fact]
     public async Task RunCyclesUnderHostAndEmitCountersToMeter()
     {
-        var measurements = new ConcurrentBag<(string Instrument, long Value)>();
+        var measurements = new ConcurrentBag<(string Instrument, double Value)>();
 
         using var listener = new MeterListener
         {
@@ -31,7 +31,9 @@ public sealed class ScheduledWorkerHostingShould
             },
         };
 
-        listener.SetMeasurementEventCallback<long>(
+        // Инструменты объявлены в double: длительности и доли целыми не бывают, а
+        // один тип замера избавляет экспорт от разбора, каким он приехал.
+        listener.SetMeasurementEventCallback<double>(
             (instrument, value, _, _) => measurements.Add((instrument.Name, value)));
         listener.Start();
 
@@ -54,7 +56,7 @@ public sealed class ScheduledWorkerHostingShould
 
         measurements.Where(measurement => measurement.Instrument == "worker.Ticking.ticked")
             .Sum(measurement => measurement.Value)
-            .ShouldBeGreaterThanOrEqualTo(3);
+            .ShouldBeGreaterThanOrEqualTo(3d);
 
         measurements.ShouldContain(measurement => measurement.Instrument == "worker.Ticking.outcome.succeeded");
         measurements.ShouldNotContain(measurement => measurement.Instrument == "worker.Ticking.outcome.failed");

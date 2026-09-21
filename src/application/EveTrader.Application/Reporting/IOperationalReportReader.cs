@@ -19,4 +19,7 @@ public interface IOperationalReportReader
 
     /// <summary>Отчёт о материализации: что лежит локально и по какому набору.</summary>
     Task<IReadOnlyList<MaterializationReportRow>> MaterializationReportAsync(CancellationToken cancellationToken);
+
+    /// <summary>Расход источника за интервал: запросы, ответы «не изменилось», отказы.</summary>
+    Task<SourceUsageCounts> SourceUsageAsync(TimeRange observed, CancellationToken cancellationToken);
 }
