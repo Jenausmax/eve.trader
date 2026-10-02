@@ -99,6 +99,34 @@ public sealed class SeriesComputationShould
     }
 
     [Fact]
+    public void AdmitAWindowWhoseNextSnapshotIsNotYetDue()
+    {
+        // Снимки в :15 и :45. На 03:00 последний снимок был в 02:45, следующий ждут в
+        // 03:15: отрезок [02:45, 03:00) ещё не наблюдён, но и не пропущен.
+        SeriesComputed computed = SeriesComputation.Compute(Inputs(offsetMinutes: 15), Definitions, Interval);
+
+        Verdict(computed, SeriesKind.ObservedTurnover, Start.AddHours(3)).Window.Admission
+            .ShouldBe(SeriesAdmission.Admitted);
+    }
+
+    [Fact]
+    public void RefuseAWindowWhoseNextSnapshotIsOverdue()
+    {
+        SeriesInputs inputs = Inputs();
+        SeriesInputs stalled = inputs with
+        {
+            Coverage = [.. inputs.Coverage.Where(static entry => entry.Collected.To <= Start.AddHours(2))],
+        };
+
+        SeriesComputed computed = SeriesComputation.Compute(stalled, Definitions, Interval);
+
+        // После 02:00 снимков нет. Снимок 02:30 был должен и не пришёл — к 03:00 это уже
+        // пропуск, а не ожидание.
+        Verdict(computed, SeriesKind.ObservedTurnover, Start.AddHours(3)).Window.Admission
+            .ShouldBe(SeriesAdmission.Refused);
+    }
+
+    [Fact]
     public void NotLetDailyHistoryVouchForTheBook()
     {
         SeriesInputs inputs = Inputs();
@@ -192,7 +220,7 @@ public sealed class SeriesComputationShould
     /// Снимки каждые полчаса с 00:00 до 06:00; первый — базовая линия. По паре 34 в
     /// Jita 4-4 идут исполнения, перестановки и одно исчезновение.
     /// </summary>
-    private static SeriesInputs Inputs()
+    private static SeriesInputs Inputs(int offsetMinutes = 0)
     {
         var coverage = new List<CoverageEntry>();
         var features = new List<BookFeatures>();
@@ -200,7 +228,7 @@ public sealed class SeriesComputationShould
 
         for (var slot = 0; slot <= 12; slot++)
         {
-            DateTimeOffset at = Start + (Step * slot);
+            DateTimeOffset at = Start.AddMinutes(offsetMinutes) + (Step * slot);
             var observation = ObservationId.From($"obs-{slot:00}");
 
             coverage.Add(CoverageEntries.Success(

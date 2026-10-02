@@ -53,7 +53,16 @@ public sealed class ParquetFactMaintenance(LakeLayout layout, ICoverageLog cover
             cancellationToken);
     }
 
-    public Task<int> DropDerivedAsync(FactSet set, TimeRange observed, CancellationToken cancellationToken)
+    /// <summary>
+    /// Удаляет файлы производного набора за интервал — и подтверждения тех порций, что
+    /// подтверждают только производное.
+    ///
+    /// Признаки стакана подтверждены записью наблюдения, которая подтверждает и сырьё:
+    /// её трогать нельзя. Ряды и сигналы подтверждены своими записями «производное», и
+    /// они уходят вместе с данными: иначе перестройка того же отрезка наткнулась бы на
+    /// «уже подтверждено» и не записала бы ничего, оставив дыру на месте удалённого.
+    /// </summary>
+    public async Task<int> DropDerivedAsync(FactSet set, TimeRange observed, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -66,7 +75,7 @@ public sealed class ParquetFactMaintenance(LakeLayout layout, ICoverageLog cover
 
         if (!Directory.Exists(root))
         {
-            return Task.FromResult(0);
+            return 0;
         }
 
         var removed = 0;
@@ -80,8 +89,18 @@ public sealed class ParquetFactMaintenance(LakeLayout layout, ICoverageLog cover
 
             File.Delete(file);
             removed++;
+
+            if (PartitionPaths.ObservedDateOf(file) is { } date
+                && layout.CoverageFileFor(date, LakeLayout.ObservationOf(file)) is var confirmation
+                && File.Exists(confirmation)
+                && (await ParquetCoverageLog.ReadFileAsync(confirmation, cancellationToken).ConfigureAwait(false))
+                    .Select(CoverageSchema.FromRow)
+                    .All(static entry => !entry.IsObservation))
+            {
+                File.Delete(confirmation);
+            }
         }
 
-        return Task.FromResult(removed);
+        return removed;
     }
 }

@@ -31,6 +31,15 @@ public sealed class ParquetCoverageLog(LakeLayout layout) : ICoverageLog
             {
                 CoverageEntry entry = CoverageSchema.FromRow(row);
 
+                // Журнал читают как журнал наблюдений. Подтверждения производных порций —
+                // рядов, сигналов, отчётов — наблюдениями не являются: о рынке они не
+                // говорят и в разборе покрытия, в приёмке и в отчётах оператору были бы
+                // ложными «наблюдениями» региона.
+                if (!entry.IsObservation)
+                {
+                    continue;
+                }
+
                 if (!entry.Collected.Overlaps(observed))
                 {
                     continue;

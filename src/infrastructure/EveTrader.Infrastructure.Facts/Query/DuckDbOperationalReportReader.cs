@@ -12,6 +12,9 @@ namespace EveTrader.Infrastructure.Facts.Query;
 /// Порт агрегатов — только для отчётов оператору. Здесь агрегация средствами хранилища
 /// разрешена: расхождения обучения с боем для отчёта не существует по определению.
 ///
+/// Подтверждения производных порций (рядов, сигналов, отчётов) в счётчики не входят:
+/// наблюдениями региона они не являются.
+///
 /// Состояние покрытия агрегатом не считается и считаться не может: отличить восполнимый
 /// пробел от безвозвратного нельзя, не зная, что публикует источник, а это не лежит в
 /// файлах. Счётчики берутся запросом, состояние — доменным резолвером.
@@ -108,6 +111,7 @@ public sealed class DuckDbOperationalReportReader(
              FROM read_parquet({DuckDb.Literal(layout.SetGlob(FactSet.Coverage))}, hive_partitioning = 1)
              WHERE {CoverageSchema.CollectedFrom} < {DuckDb.Timestamp(observed.To)}
                AND {CoverageSchema.CollectedTo} > {DuckDb.Timestamp(observed.From)}
+               AND {CoverageSchema.Outcome} <> {(int)CoverageOutcome.Derived}
              """;
 
         await using DuckDBConnection connection = DuckDb.Open();
@@ -154,6 +158,7 @@ public sealed class DuckDbOperationalReportReader(
              FROM read_parquet({DuckDb.Literal(layout.SetGlob(FactSet.Coverage))}, hive_partitioning = 1)
              WHERE {CoverageSchema.CollectedFrom} < {DuckDb.Timestamp(observed.To)}
                AND {CoverageSchema.CollectedTo} > {DuckDb.Timestamp(observed.From)}
+               AND {CoverageSchema.Outcome} <> {(int)CoverageOutcome.Derived}
              GROUP BY {CoverageSchema.Region}
              ORDER BY {CoverageSchema.Region}
              """;

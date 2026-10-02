@@ -42,6 +42,33 @@ public static class SeriesCoverage
         ];
     }
 
+    /// <summary>
+    /// Записи, известные на момент, — с хвостом от последнего снимка до этого момента.
+    ///
+    /// Хвост — не пробел. Следующий снимок ожидается через шаг, и пока шаг не истёк,
+    /// отрезок после последнего снимка не «не наблюдался», а ещё не наблюдён: снимок не
+    /// пропущен, он просто не наступил. Пропуском становится снимок, который должен был
+    /// прийти и не пришёл, — тогда хвост короче отрезка до момента, и окно с ним
+    /// отклоняется.
+    /// </summary>
+    public static IReadOnlyList<CoverageEntry> KnownAt(IReadOnlyList<CoverageEntry> vouched, DateTimeOffset instant)
+    {
+        List<CoverageEntry> known = [.. vouched.Where(entry => entry.KnownAt <= instant)];
+
+        if (known.Where(static entry => entry.Covers).MaxBy(static entry => entry.Collected.To) is not { } last
+            || last.Collected.To >= instant
+            || last.ObservationStep <= TimeSpan.Zero)
+        {
+            return known;
+        }
+
+        DateTimeOffset due = last.Collected.To + last.ObservationStep;
+
+        known.Add(last with { Collected = TimeRange.Between(last.Collected.To, due < instant ? due : instant) });
+
+        return known;
+    }
+
     /// <summary>Отрезок, за который снимок ручается: его шаг назад плюс сам интервал сбора.</summary>
     public static TimeRange Vouched(CoverageEntry entry)
     {
