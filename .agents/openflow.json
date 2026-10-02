@@ -1,0 +1,51 @@
+{
+  "$comment": "Проектный конфиг openflow для eve.trader. Все значения взяты из фактов репозитория; источник каждого — в $comment рядом. Личное (харнесс, модели) живёт в ~/.agents/openflow.json и сюда не кладётся.",
+  "gates": {
+    "$comment": "Гейт репозитория один и объявлен правилом: .agents/rules/process/build-verification.md §«Единственная команда верификации backend» — «dotnet build <solution>.slnx -c Debug — это ВЕСЬ гейт». Компиляция, анализаторы с TreatWarningsAsErrors и проверка форматирования идут внутри него.",
+    "build": "dotnet build EveTrader.slnx -c Debug",
+    "$comment_test": "Тесты отдельной командой: build их не запускает. Без --no-build намеренно — встроенные workflow гоняют test после build, но гейт, падающий с внятной ошибкой при запуске в одиночку, дороже сэкономленных десяти секунд. xUnit v3 через Microsoft.Testing.Platform, опт-ин в global.json.",
+    "test": "dotnet test EveTrader.slnx -c Debug"
+  },
+  "skills": {
+    "$comment": "propose и apply — скиллы репозитория (.claude/skills). review — code-review из ~/.agents/skills: только чтение, две оси «канон репозитория» и «соответствие спеке», что совпадает с целью этапа. qa — openspec-qa, заведён этим подключением: подходящего скилла ни в репозитории, ни у пользователя не было, а встроенный feature требует роль qa отдельно от review.",
+    "propose": "openspec-propose",
+    "apply": "openspec-apply-change",
+    "review": "code-review",
+    "qa": "openspec-qa"
+  },
+  "forbidPaths": [
+    ".agents/rules/**",
+    ".claude/rules/**",
+    "CLAUDE.md",
+    "openspec/specs/**"
+  ],
+  "$comment_forbidPaths": "Правила и их указатели — subtree из nova/meta/rules, правятся наверху (CLAUDE.md §«Правка правил»); правка на месте будет затёрта следующим subtree pull. CLAUDE.md и .agents/rules входят в инженерную зону (process/local-project.md §«Инженерная зона»). openspec/specs — норма продукта: изменения въезжают предложениями через openspec/changes и попадают в норму только архивацией (CLAUDE.md §«Процесс разработки — OpenSpec»).",
+  "zones": {
+    "engineering": {
+      "paths": [
+        "EveTrader.slnx",
+        "Directory.Build.props",
+        "Directory.Build.targets",
+        "Directory.Packages.props",
+        "global.json",
+        ".editorconfig",
+        "src/build/**",
+        "**/Program.cs"
+      ],
+      "procedure": ".agents/rules/process/engineering-zone-access.md",
+      "label": "инженерная зона"
+    }
+  },
+  "$comment_zones": "Список зоны объявлен проектом: process/local-project.md §«Инженерная зона» — EveTrader.slnx, Directory.*.props/.targets, .editorconfig, composition root, CI, .agents/rules, CLAUDE.md. Фоновый прогон — это Tier B из engineering-zone-access.md: без владельца в цикле зона закрыта. Флаг --allow engineering и есть то самое отдельно полученное разрешение, поэтому зона здесь, а не в forbidPaths: иначе регистрация нового проекта в slnx (process/project-slnx-registration.md требует её обязательно) и добавление команды CLI в composition root упирались бы в blocked без выхода. Правила и CLAUDE.md в зону не вынесены намеренно — они правятся в другом репозитории, разрешать их здесь нечем.",
+  "rules": {
+    "enforce": "require",
+    "requirePriority": "high"
+  },
+  "$comment_rules": "В репозитории богатое дерево .agents/rules с приоритетами и always: true; непрочитанное правило высокого приоритета по области правки должно валить этап, а не становиться находкой.",
+  "worktree": {
+    "integration": "master"
+  },
+  "$comment_worktree": "Интеграционная ветка — master: своей работой владелец коммитит прямо в неё, ветки заводятся только под фоновых агентов с префиксом feature/.",
+  "authorization": "Прогон запущен владельцем репозитория eve.trader.\n\nПродуктовая зона — правь без вопросов: src/** (кроме src/build/** и Program.cs), tests/**, openspec/changes/**, CHANGELOG.md.\n\nИнженерная зона закрыта: EveTrader.slnx, Directory.*.props и .targets, Directory.Packages.props, global.json, .editorconfig, src/build/**, любой Program.cs. Правила (.agents/rules/**, .claude/rules/**, CLAUDE.md) и норма продукта (openspec/specs/**) запрещены совсем. Упёрся в запрет — остановись со status=blocked, назови зону и объясни, какая именно правка нужна и зачем; владелец откроет зону флагом на один прогон.\n\nКоммиты: формат [eve.trader](feat/<area>): <subject> по .agents/rules/process/commit-format.md, subject английский в повелительном наклонении, без точки, до 72 знаков. Область feat/<area> выбирается по тому, что затронуто; бумага изменения — feat/docs.\n\nЗапрещено: push в master, merge веток, git commit --no-verify, git push --force. Ветку прогона мержит владелец.",
+  "context": "Канон репозитория — CLAUDE.md в корне, прочитай его первым; дальше .agents/rules/ (общий набор владельца) и openspec/ (норма продукта и предложения изменений).\n\nЯзык: документация, спеки, комментарии в коде и отчёты — русский. Идентификаторы, имена типов и subject коммита — английский.\n\nГейт один: dotnet build EveTrader.slnx -c Debug. Внутри него компиляция, анализаторы с TreatWarningsAsErrors и проверка форматирования — дрейф формата роняет сборку.\n\nПеред завершением этапа прогони dotnet format EveTrader.slnx --severity hidden, а после него обязательно проверь две известные диверсии автофиксов: (1) IDE3000 вписывает throw new NotImplementedException() в switch, который анализатор счёл неполным — грепни NotImplementedException по src и tests и замени явным перечислением ветвей; (2) VSTHRD111 вписывает ConfigureAwait(false) в тела тестов, что запрещено xUnit1030 — в tests/** должно быть ноль вхождений ConfigureAwait(false).\n\nВ продакшн-коде нет приватных методов: .agents/rules/csharp/class-layout-and-tooling.md §1a, помощники выносятся в file-static класс. Домен не знает «сейчас»: ни DateTime.UtcNow, ни TimeProvider.System — время приходит аргументом (csharp/local-project-layers.md §«Домен: два запрета сверх общих законов»).\n\nНовый .csproj обязан быть зарегистрирован в EveTrader.slnx (process/project-slnx-registration.md), но сам slnx лежит в инженерной зоне: нужен новый проект — остановись со status=blocked и скажи это.\n\nНе запускай долгоживущие процессы: dotnet watch, dotnet run сервера, любые watch и dev-режимы, браузерную автоматизацию (process/agent-runtime-safety.md).\n\nКаталог ~/eve.trader-data — данные владельца (озеро фактов, сотни гигабайт). Читать можно, писать и удалять — нельзя."
+}

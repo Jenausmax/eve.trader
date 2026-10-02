@@ -24,3 +24,6 @@ coverage*.json
 # macos
 .DS_Store
 .agents/worktree/
+
+# openflow: прогоны и локальный конфиг
+.agents/openflow/
