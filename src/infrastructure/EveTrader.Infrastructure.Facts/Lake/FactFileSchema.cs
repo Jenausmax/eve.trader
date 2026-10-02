@@ -36,6 +36,7 @@ public static class FactFileSchema
         return column.Type switch
         {
             FactColumnType.Int64 => new DataField<long>(column.Name),
+            FactColumnType.NullableInt64 => new DataField<long?>(column.Name),
             FactColumnType.Double => new DataField<double>(column.Name),
             FactColumnType.String => new DataField<string>(column.Name),
             _ => throw new ArgumentOutOfRangeException(nameof(column), column.Type, "Неизвестный тип колонки"),

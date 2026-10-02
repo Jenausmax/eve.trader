@@ -96,7 +96,7 @@ public sealed class BookReconstructionShould
             steps.Add(steps[^1]);
         }
 
-        var observer = new RegionObserver(Observations.TheForge, DiffOptions.Default, FeatureOptions.Default);
+        var observer = new RegionObserver(Observations.TheForge, DiffOptions.Default, FeatureOptions.AllPairs);
         var events = new List<OrderEvent>();
         IReadOnlyList<BookFeatures> lastFeatures = [];
 
@@ -118,7 +118,7 @@ public sealed class BookReconstructionShould
         // Признаки, пересчитанные по восстановленному стакану, совпадают с теми, что
         // посчитаны в проходке. Если расходятся — либо события теряют состояние, либо
         // признаки считаются не из того, из чего объявлено.
-        var builder = new BookFeatureBuilder(FeatureOptions.Default);
+        var builder = new BookFeatureBuilder(FeatureOptions.AllPairs);
 
         foreach (OrderSnapshot order in rebuilt)
         {
@@ -144,7 +144,7 @@ public sealed class BookReconstructionShould
     [Fact]
     public void ReflectConfirmedKnowledgeNotRawAbsence()
     {
-        var observer = new RegionObserver(Observations.TheForge, DiffOptions.Default, FeatureOptions.Default);
+        var observer = new RegionObserver(Observations.TheForge, DiffOptions.Default, FeatureOptions.AllPairs);
 
         OrderSnapshot[] start = [Observations.Order(1, price: 100), Observations.Order(2, price: 90)];
         var events = new List<OrderEvent>(observer.Observe(start, Observations.Meta(0)).Events);
@@ -168,7 +168,7 @@ public sealed class BookReconstructionShould
     {
         List<OrderSnapshot[]> steps = Sequence(seed: 99, steps: 8, orders: 20);
 
-        var observer = new RegionObserver(Observations.TheForge, DiffOptions.Default, FeatureOptions.Default);
+        var observer = new RegionObserver(Observations.TheForge, DiffOptions.Default, FeatureOptions.AllPairs);
         var events = new List<OrderEvent>();
 
         for (var step = 0; step < steps.Count; step++)
@@ -185,7 +185,7 @@ public sealed class BookReconstructionShould
     [Fact]
     public void DropAnOrderWhoseDisappearanceWasConfirmed()
     {
-        var observer = new RegionObserver(Observations.TheForge, DiffOptions.Default, FeatureOptions.Default);
+        var observer = new RegionObserver(Observations.TheForge, DiffOptions.Default, FeatureOptions.AllPairs);
 
         OrderSnapshot[] start = [Observations.Order(1, price: 100), Observations.Order(2, price: 90)];
         var events = new List<OrderEvent>(observer.Observe(start, Observations.Meta(0)).Events);

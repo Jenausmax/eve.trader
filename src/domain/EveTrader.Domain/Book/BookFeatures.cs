@@ -16,6 +16,11 @@ namespace EveTrader.Domain.Book;
 /// <param name="SellOrders">Число ордеров на продажу.</param>
 /// <param name="BuyDepth">Доступный объём покупки по каждому порогу.</param>
 /// <param name="SellDepth">Доступный объём продажи по каждому порогу.</param>
+/// <param name="BuyOrdersWithin">
+/// Число ордеров покупки внутри каждого порога. Пусто, когда стороны нет: отсутствие
+/// стороны — не ноль конкурентов.
+/// </param>
+/// <param name="SellOrdersWithin">Число ордеров продажи внутри каждого порога.</param>
 /// <param name="ObservedAt">Время наблюдения, из которого признаки получены.</param>
 /// <param name="Observation">Наблюдение, подтверждающее признаки.</param>
 /// <param name="Incomplete">
@@ -31,6 +36,8 @@ public sealed record BookFeatures(
     int SellOrders,
     IReadOnlyList<long> BuyDepth,
     IReadOnlyList<long> SellDepth,
+    IReadOnlyList<int> BuyOrdersWithin,
+    IReadOnlyList<int> SellOrdersWithin,
     DateTimeOffset ObservedAt,
     ObservationId Observation,
     bool Incomplete)

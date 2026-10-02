@@ -19,7 +19,7 @@ internal sealed class BookLake : IDisposable
         Writer = new ParquetFactWriter(Layout, Coverage);
         Rows = new DuckDbFactRowReader(Layout);
 
-        FeatureOptions = features ?? FeatureOptions.Default;
+        FeatureOptions = features ?? FeatureOptions.AllPairs;
         Observer = new RegionObserver(Region, DiffOptions.Default, FeatureOptions);
         Derivation = new ObservationDerivation(Writer, new DailyCheckpointPolicy());
     }

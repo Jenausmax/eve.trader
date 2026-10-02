@@ -86,7 +86,7 @@ internal sealed class OrderBookFixture : IDisposable
             source,
             new OrderBookScope(within, regions ?? []),
             DiffOptions.Default,
-            FeatureOptions.Default,
+            FeatureOptions.AllPairs,
             StaticDataVersion.From("sde-test"),
             cancellationToken);
 

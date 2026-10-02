@@ -10,7 +10,7 @@ namespace EveTrader.Domain.Unit.Book;
 public sealed class RegionObserverShould
 {
     private static RegionObserver Observer(DiffOptions? options = null) =>
-        new(Observations.TheForge, options ?? DiffOptions.Default, FeatureOptions.Default);
+        new(Observations.TheForge, options ?? DiffOptions.Default, FeatureOptions.AllPairs);
 
     /// <summary>Первое наблюдение всегда базовая линия — отдаём его и начинаем считать.</summary>
     private static RegionObserver Primed(params OrderSnapshot[] orders)

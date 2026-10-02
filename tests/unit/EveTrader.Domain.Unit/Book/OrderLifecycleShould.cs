@@ -11,7 +11,7 @@ namespace EveTrader.Domain.Unit.Book;
 public sealed class OrderLifecycleShould
 {
     private static RegionObserver Observer(DiffOptions? options = null) =>
-        new(Observations.TheForge, options ?? DiffOptions.Default, FeatureOptions.Default);
+        new(Observations.TheForge, options ?? DiffOptions.Default, FeatureOptions.AllPairs);
 
     [Fact]
     public void CallNpcRestockWhatWouldOtherwiseLookLikeARepricing()

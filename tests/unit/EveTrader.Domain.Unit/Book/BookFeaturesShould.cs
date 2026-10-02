@@ -9,7 +9,7 @@ public sealed class BookFeaturesShould
     private const long Jita = 60003760;
 
     private static RegionObserver Observer(FeatureOptions? features = null) =>
-        new(Observations.TheForge, DiffOptions.Default, features ?? FeatureOptions.Default);
+        new(Observations.TheForge, DiffOptions.Default, features ?? FeatureOptions.AllPairs);
 
     private static OrderSnapshot Buy(long id, decimal price, long volume) =>
         Observations.Order(id, price, remain: volume, total: volume, isBuy: true);
@@ -45,6 +45,37 @@ public sealed class BookFeaturesShould
     }
 
     [Fact]
+    public void CountOrdersWithinEachThresholdNextToTheVolume()
+    {
+        ObservationOutcome outcome = Observer().Observe(
+            [Buy(1, 90, 10), Buy(2, 89, 20), Buy(5, 80, 1), Sell(3, 100, 5), Sell(4, 104, 50), Sell(6, 104.5m, 1)],
+            Observations.Meta(0));
+
+        BookFeatures features = outcome.Features.ShouldHaveSingleItem();
+
+        // Покупка: в 1 % от 90 (до 89.1) — один ордер, в 5 % (до 85.5) — два; ордер по
+        // 80 конкурентом не считается, хотя на стороне он есть.
+        features.BuyOrders.ShouldBe(3);
+        features.BuyOrdersWithin.ShouldBe([1, 2]);
+
+        // Продажа: в 1 % от 100 (до 101) — один, в 5 % (до 105) — три.
+        features.SellOrders.ShouldBe(3);
+        features.SellOrdersWithin.ShouldBe([1, 3]);
+    }
+
+    [Fact]
+    public void WriteNoCountsForAnAbsentSide()
+    {
+        ObservationOutcome outcome = Observer().Observe([Sell(3, 100, 5)], Observations.Meta(0));
+
+        BookFeatures features = outcome.Features.ShouldHaveSingleItem();
+
+        // Нет лучшей цены — нет и счётчиков: отсутствие стороны — не ноль конкурентов.
+        features.BuyOrdersWithin.ShouldBeEmpty();
+        features.SellOrdersWithin.ShouldBe([1, 1]);
+    }
+
+    [Fact]
     public void RecordAMissingSideAsAbsenceNotAsZero()
     {
         ObservationOutcome outcome = Observer().Observe(
@@ -67,10 +98,7 @@ public sealed class BookFeaturesShould
     [Fact]
     public void MaterializeFeaturesOnlyForPairsInScope()
     {
-        FeatureOptions hubsOnly = FeatureOptions.Default with
-        {
-            IncludePair = static (_, locationId) => locationId == Jita,
-        };
+        var hubsOnly = FeatureOptions.For(FeatureCoverage.Locations("станция Jita 4-4", [Jita]));
 
         ObservationOutcome outcome = Observer(hubsOnly).Observe(
             [

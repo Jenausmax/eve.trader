@@ -39,6 +39,11 @@ public sealed class DuckDbFactRowReader(LakeLayout layout) : IFactRowReader
     /// <summary>
     /// Отбор без вычисления: партиции, подтверждение покрытием, горизонт знания.
     /// Возвращает все версии — выбор версии происходит выше.
+    ///
+    /// Файлы одного набора сводятся по именам колонок, а не по позициям: состав колонок
+    /// набора растёт вместе с нормой — признаки стакана получили число ордеров внутри
+    /// порогов, — и файлы, записанные до этого, колонок не несут. Их значения приходят
+    /// пустыми, а не обрушивают чтение всего набора.
     /// </summary>
     public async Task<IReadOnlyList<FactRow>> SelectAsync(
         FactSet set,
@@ -54,7 +59,7 @@ public sealed class DuckDbFactRowReader(LakeLayout layout) : IFactRowReader
         var sql =
             $"""
              SELECT *
-             FROM read_parquet({DuckDb.Literal(layout.SetGlob(set))}, hive_partitioning = 1) AS facts
+             FROM read_parquet({DuckDb.Literal(layout.SetGlob(set))}, hive_partitioning = 1, union_by_name = 1) AS facts
              WHERE facts.{FactColumnNames.ObservedDate} >= {DuckDb.Literal(DateOnly.FromDateTime(observed.From.UtcDateTime).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture))}
                AND facts.{FactColumnNames.ObservedDate} <= {DuckDb.Literal(DateOnly.FromDateTime(observed.To.UtcDateTime).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture))}
                AND facts.{FactColumnNames.Observation} IN (

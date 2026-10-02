@@ -24,6 +24,9 @@ public sealed record FactColumn
     public static FactColumn OfInt64(string name, IReadOnlyList<long> values) =>
         new(Named(name), FactColumnType.Int64, values.ToArray());
 
+    public static FactColumn OfNullableInt64(string name, IReadOnlyList<long?> values) =>
+        new(Named(name), FactColumnType.NullableInt64, values.ToArray());
+
     public static FactColumn OfDouble(string name, IReadOnlyList<double> values) =>
         new(Named(name), FactColumnType.Double, values.ToArray());
 

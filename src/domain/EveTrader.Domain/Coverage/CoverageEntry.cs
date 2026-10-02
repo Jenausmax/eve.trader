@@ -36,7 +36,13 @@ public sealed record CoverageEntry(
     /// Покрывает ли запись свой интервал. Отказ не покрывает: источник ничего не сказал
     /// о рынке, и выдать это за «изменений не было» — соврать.
     /// </summary>
-    public bool Covers => Outcome is not CoverageOutcome.Failure;
+    public bool Covers => Outcome is not (CoverageOutcome.Failure or CoverageOutcome.Derived);
+
+    /// <summary>
+    /// Запись — попытка наблюдения, а не подтверждение производной порции. Производное о
+    /// рынке не говорит, и в разборе покрытия ему делать нечего.
+    /// </summary>
+    public bool IsObservation => Outcome is not CoverageOutcome.Derived;
 
     /// <summary>Полное наблюдение — то, на которое можно опираться при выводе об исчезновении.</summary>
     public bool IsComplete => Outcome is CoverageOutcome.Success or CoverageOutcome.NotModified;

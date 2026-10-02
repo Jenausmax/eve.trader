@@ -37,7 +37,9 @@ internal static class ReplayCommand
         IntakeReport report = await into.Intake.RunAsync(
             source,
             DiffOptions.Default,
-            FeatureOptions.Default,
+            // Реплей перестраивает записанное, поэтому без объявления охват — все пары, как
+            // у записанного. Сузить можно явно: так снимается объём узкого охвата.
+            options.Values.ContainsKey(FeatureScopes.Option) ? FeatureScopes.Of(options) : FeatureOptions.AllPairs,
             StaticDataVersion.From(options.StaticData),
             cancellationToken).ConfigureAwait(false);
 

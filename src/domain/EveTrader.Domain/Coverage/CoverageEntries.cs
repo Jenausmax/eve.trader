@@ -77,6 +77,19 @@ public static class CoverageEntries
             0, 0, 0, Named(source), observationStep, 0, reason, knownAt);
     }
 
+    /// <summary>
+    /// Подтверждение производной порции. Отрезок — время, которое порция описывает; он
+    /// же задаёт партицию записи, и потому обязан совпадать с партицией строк.
+    /// </summary>
+    public static CoverageEntry Derived(
+        ObservationId observation,
+        RegionId region,
+        TimeRange described,
+        string source,
+        DateTimeOffset knownAt) =>
+        new(observation, region, described, CoverageOutcome.Derived,
+            0, 0, 0, Named(source), TimeSpan.Zero, 0, null, knownAt);
+
     public static string Named(string source) =>
         string.IsNullOrWhiteSpace(source)
             ? throw new ArgumentException("Источник наблюдения назван", nameof(source))

@@ -8,7 +8,7 @@ public static class FactSets
     /// удаляется и перестраивается — в этом и разница: производное выводимо из сырья,
     /// сырьё не выводимо ни из чего.
     /// </summary>
-    public static bool IsRaw(FactSet set) => set is not FactSet.BookFeatures;
+    public static bool IsRaw(FactSet set) => set is not (FactSet.BookFeatures or FactSet.FeatureSeries or FactSet.Signals);
 
     /// <summary>
     /// Входит ли регион в путь партиции. Для наблюдений стакана — да: они снимаются
@@ -27,6 +27,9 @@ public static class FactSets
         FactSet.BookFeatures => "book-features",
         FactSet.HistoryDaily => "history-daily",
         FactSet.Coverage => "coverage",
+        FactSet.FeatureSeries => "feature-series",
+        FactSet.Signals => "signals",
+        FactSet.BacktestReports => "backtest-reports",
         _ => throw new ArgumentOutOfRangeException(nameof(set), set, "Неизвестный набор фактов"),
     };
 }

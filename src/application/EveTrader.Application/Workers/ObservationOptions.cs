@@ -32,7 +32,12 @@ public sealed class ObservationOptions
 
     public DiffOptions Diff { get; init; } = DiffOptions.Default;
 
-    public FeatureOptions Features { get; init; } = FeatureOptions.Default;
+    /// <summary>
+    /// Признаки стакана. Охват по умолчанию не объявлен, и сбор с такой настройкой
+    /// отклоняется: полный охват пар стоил бы 770 ГиБ за окно, и платить их без основания
+    /// нельзя. Основание — перечень пар, нужных правилам сигналов.
+    /// </summary>
+    public FeatureOptions Features { get; init; } = FeatureOptions.Undeclared;
 
     public string StaticData { get; init; } = "unknown";
 }

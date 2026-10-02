@@ -23,7 +23,8 @@ public sealed record MaterializationWindow
             : throw new ArgumentOutOfRangeException(nameof(orderBookDepth), orderBookDepth, "Глубина окна положительна");
 
     /// <summary>Подпадает ли набор под окно вообще.</summary>
-    public static bool IsWindowed(FactSet set) => set is not (FactSet.HistoryDaily or FactSet.Coverage);
+    public static bool IsWindowed(FactSet set) =>
+        set is not (FactSet.HistoryDaily or FactSet.Coverage or FactSet.BacktestReports);
 
     /// <summary>
     /// Интервал, который положено держать локально на указанный момент. Момент приходит

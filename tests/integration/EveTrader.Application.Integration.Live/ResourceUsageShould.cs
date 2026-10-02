@@ -37,7 +37,7 @@ public sealed class ResourceUsageShould
         LiveCollector collector = fixture.Collector(LiveFixture.Forge);
 
         CollectionCycle first = await collector
-            .RunCycleAsync(DiffOptions.Default, FeatureOptions.Default, StaticDataVersion.From("sde-test"), token)
+            .RunCycleAsync(DiffOptions.Default, FeatureOptions.AllPairs, StaticDataVersion.From("sde-test"), token)
             .ConfigureAwait(true);
 
         first.Observed.ShouldBe(1);
@@ -48,7 +48,7 @@ public sealed class ResourceUsageShould
         fixture.Clock.Now = LiveFixture.Start.AddMinutes(10);
 
         CollectionCycle second = await collector
-            .RunCycleAsync(DiffOptions.Default, FeatureOptions.Default, StaticDataVersion.From("sde-test"), token)
+            .RunCycleAsync(DiffOptions.Default, FeatureOptions.AllPairs, StaticDataVersion.From("sde-test"), token)
             .ConfigureAwait(true);
 
         second.Unchanged.ShouldBe(0, "первый ответ валидатора ещё не дал — он приходит со вторым");
@@ -79,7 +79,7 @@ public sealed class ResourceUsageShould
             fixture.Clock.Now = LiveFixture.Start.AddMinutes(10 * cycle);
 
             _ = await collector
-                .RunCycleAsync(DiffOptions.Default, FeatureOptions.Default, StaticDataVersion.From("sde-test"), token)
+                .RunCycleAsync(DiffOptions.Default, FeatureOptions.AllPairs, StaticDataVersion.From("sde-test"), token)
                 .ConfigureAwait(true);
         }
 
@@ -110,7 +110,7 @@ public sealed class ResourceUsageShould
         LiveCollector collector = fixture.Collector(LiveFixture.Forge);
 
         _ = await collector
-            .RunCycleAsync(DiffOptions.Default, FeatureOptions.Default, StaticDataVersion.From("sde-test"), token)
+            .RunCycleAsync(DiffOptions.Default, FeatureOptions.AllPairs, StaticDataVersion.From("sde-test"), token)
             .ConfigureAwait(true);
 
         fixture.Metrics.TotalOf("observation.source.requests").ShouldBe(2d, "по странице на запрос");
@@ -137,7 +137,7 @@ public sealed class ResourceUsageShould
         LiveCollector collector = fixture.Collector(LiveFixture.Forge);
 
         _ = await collector
-            .RunCycleAsync(DiffOptions.Default, FeatureOptions.Default, StaticDataVersion.From("sde-test"), token)
+            .RunCycleAsync(DiffOptions.Default, FeatureOptions.AllPairs, StaticDataVersion.From("sde-test"), token)
             .ConfigureAwait(true);
 
         var bytesAfterFirst = fixture.Metrics.TotalOf("observation.source.bytes");
@@ -145,7 +145,7 @@ public sealed class ResourceUsageShould
         fixture.Clock.Now = LiveFixture.Start.AddMinutes(10);
 
         _ = await collector
-            .RunCycleAsync(DiffOptions.Default, FeatureOptions.Default, StaticDataVersion.From("sde-test"), token)
+            .RunCycleAsync(DiffOptions.Default, FeatureOptions.AllPairs, StaticDataVersion.From("sde-test"), token)
             .ConfigureAwait(true);
 
         fixture.Metrics.TotalOf("observation.source.not_modified").ShouldBe(1d);

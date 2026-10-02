@@ -7,8 +7,9 @@ namespace EveTrader.Domain.Book;
 /// Перевод признаков стакана в порцию фактов.
 ///
 /// Отсутствие стороны записывается как отсутствие и в хранилище: колонка лучшей цены
-/// несёт признак наличия отдельно от значения. Записать ноль было бы проще и неверно —
-/// ноль это цена.
+/// несёт признак наличия отдельно от значения, а глубина и число ордеров внутри порогов
+/// у отсутствующей стороны не записываются вовсе — колонка пуста. Записать ноль было бы
+/// проще и неверно: ноль это цена, объём и число конкурентов.
 /// </summary>
 public static class BookFeatureFacts
 {
@@ -25,6 +26,10 @@ public static class BookFeatureFacts
     /// <summary>Имя колонки глубины по порогу: пороги — настройка, поэтому имя строится.</summary>
     public static string DepthColumn(bool isBuy, int basisPoints) =>
         string.Create(CultureInfo.InvariantCulture, $"{(isBuy ? "buy" : "sell")}_depth_{basisPoints}bp");
+
+    /// <summary>Имя колонки числа ордеров внутри порога.</summary>
+    public static string OrdersWithinColumn(bool isBuy, int basisPoints) =>
+        string.Create(CultureInfo.InvariantCulture, $"{(isBuy ? "buy" : "sell")}_orders_{basisPoints}bp");
 
     public static FactBatch ToBatch(
         RegionId region,
@@ -66,13 +71,21 @@ public static class BookFeatureFacts
         {
             var slot = index;
 
-            columns.Add(FactColumn.OfInt64(
+            columns.Add(FactColumn.OfNullableInt64(
                 DepthColumn(isBuy: true, thresholds[slot]),
-                [.. features.Select(f => slot < f.BuyDepth.Count ? f.BuyDepth[slot] : 0L)]));
+                [.. features.Select(f => slot < f.BuyDepth.Count ? f.BuyDepth[slot] : (long?)null)]));
 
-            columns.Add(FactColumn.OfInt64(
+            columns.Add(FactColumn.OfNullableInt64(
                 DepthColumn(isBuy: false, thresholds[slot]),
-                [.. features.Select(f => slot < f.SellDepth.Count ? f.SellDepth[slot] : 0L)]));
+                [.. features.Select(f => slot < f.SellDepth.Count ? f.SellDepth[slot] : (long?)null)]));
+
+            columns.Add(FactColumn.OfNullableInt64(
+                OrdersWithinColumn(isBuy: true, thresholds[slot]),
+                [.. features.Select(f => slot < f.BuyOrdersWithin.Count ? f.BuyOrdersWithin[slot] : (long?)null)]));
+
+            columns.Add(FactColumn.OfNullableInt64(
+                OrdersWithinColumn(isBuy: false, thresholds[slot]),
+                [.. features.Select(f => slot < f.SellOrdersWithin.Count ? f.SellOrdersWithin[slot] : (long?)null)]));
         }
 
         return FactBatch.Of(FactSet.BookFeatures, region, observation, observedDate, envelopes, columns);
