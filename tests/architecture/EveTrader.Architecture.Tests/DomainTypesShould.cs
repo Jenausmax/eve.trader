@@ -30,6 +30,30 @@ public sealed class DomainTypesShould
         result.IsSuccessful.ShouldBeTrue();
     }
 
+    [Theory]
+    [InlineData("EveTrader.Domain.Signals")]
+    [InlineData("EveTrader.Domain.Backtest")]
+    [InlineData("EveTrader.Application.Signals")]
+    [InlineData("EveTrader.Application.Backtest")]
+    public void KeepSignalsUnableToActInTheGame(string signals)
+    {
+        // Сценарий market-signals/station-trading §«Сигнал — рекомендация, а не действие»:
+        // код сигналов не дотягивается ни до сети, ни до клиента ESI — действовать в игре
+        // ему нечем.
+        var assembly = Assembly.Load(signals.StartsWith("EveTrader.Domain", StringComparison.Ordinal)
+            ? "EveTrader.Domain"
+            : "EveTrader.Application");
+
+        NetArchTest.Rules.TestResult result = Types.InAssembly(assembly)
+            .That()
+            .ResideInNamespace(signals)
+            .Should()
+            .NotHaveDependencyOnAny("System.Net", "EveTrader.Infrastructure")
+            .GetResult();
+
+        result.FailingTypeNames.ShouldBeNull();
+    }
+
     [Fact]
     public void NotDependOnOtherLayers()
     {

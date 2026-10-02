@@ -33,10 +33,18 @@ public sealed class SeriesMaterialization(
 
         // Горизонт знания — конец интервала: позже него не известно ничего, что могло бы
         // войти хоть в одну точку. Внутри интервала каждая точка отсекается своим концом
-        // окна — это уже в домене.
-        List<FactRow> events = await ReadAsync(FactSet.OrderEvents, request, read, cancellationToken).ConfigureAwait(false);
-        List<FactRow> features = await ReadAsync(FactSet.BookFeatures, request, read, cancellationToken).ConfigureAwait(false);
-        List<FactRow> baselines = await ReadAsync(FactSet.OrderBaselines, request, read, cancellationToken).ConfigureAwait(false);
+        // окна по моменту знания строки — это уже в домене. Признаки стакана читаются
+        // всеми версиями: уточнение снимка, узнанное между концом окна и концом
+        // интервала, не должно вытеснить версию, известную на конце окна.
+        IReadOnlyList<FactRow> events = await SeriesRegionRows
+            .LatestAsync(rows, FactSet.OrderEvents, request, read, cancellationToken)
+            .ConfigureAwait(false);
+        IReadOnlyList<FactRow> features = await SeriesRegionRows
+            .VersionsAsync(rows, FactSet.BookFeatures, request, read, cancellationToken)
+            .ConfigureAwait(false);
+        IReadOnlyList<FactRow> baselines = await SeriesRegionRows
+            .LatestAsync(rows, FactSet.OrderBaselines, request, read, cancellationToken)
+            .ConfigureAwait(false);
 
         IReadOnlyList<CoverageEntry> entries = await coverage
             .ReadAsync(read, [request.Region], cancellationToken)
@@ -49,7 +57,7 @@ public sealed class SeriesMaterialization(
         var inputs = new SeriesInputs(
             request.Region,
             [.. events.Select(LakeFacts.Event)],
-            [.. features.Select(row => SeriesFactRows.Features(row, request.Thresholds))],
+            [.. features.Select(row => new KnownBookFeatures(SeriesFactRows.Features(row, request.Thresholds), row.FactKey, row.KnownAt))],
             request.Thresholds,
             entries,
             baselines.Select(static row => row.Observation).ToHashSet(),
@@ -110,8 +118,14 @@ public sealed class SeriesMaterialization(
             written,
             alreadyPresent);
     }
+}
 
-    public async Task<List<FactRow>> ReadAsync(
+/// <summary>Строки одного региона из набора: хранилище режет по интервалу, регион — здесь.</summary>
+file static class SeriesRegionRows
+{
+    /// <summary>Последняя версия каждого факта, известная к концу интервала.</summary>
+    public static async Task<IReadOnlyList<FactRow>> LatestAsync(
+        IFactRowReader rows,
         FactSet set,
         SeriesRequest request,
         TimeRange read,
@@ -128,5 +142,20 @@ public sealed class SeriesMaterialization(
         }
 
         return collected;
+    }
+
+    /// <summary>Все версии фактов, известные к концу интервала; выбор версии — за доменом.</summary>
+    public static async Task<IReadOnlyList<FactRow>> VersionsAsync(
+        IFactRowReader rows,
+        FactSet set,
+        SeriesRequest request,
+        TimeRange read,
+        CancellationToken cancellationToken)
+    {
+        IReadOnlyList<FactRow> versions = await rows
+            .SelectAsync(set, read, request.Interval.To, cancellationToken)
+            .ConfigureAwait(false);
+
+        return [.. versions.Where(row => row.Region == request.Region)];
     }
 }

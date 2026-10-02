@@ -64,6 +64,18 @@ switch (options.Command)
     case "history-stats":
         return await HistoryStatsCommand.RunAsync(context, options, cancellation.Token).ConfigureAwait(false);
 
+    case "series":
+        return await SeriesCommand.RunAsync(context, options, cancellation.Token).ConfigureAwait(false);
+
+    case "signals":
+        return await SignalsCommand.RunAsync(context, options, cancellation.Token).ConfigureAwait(false);
+
+    case "backtest":
+        return await BacktestCommand.RunAsync(context, options, cancellation.Token).ConfigureAwait(false);
+
+    case "backtest-reports":
+        return await BacktestReportsCommand.RunAsync(context, options, cancellation.Token).ConfigureAwait(false);
+
     default:
         Console.Error.WriteLine(CommandLine.Usage);
 

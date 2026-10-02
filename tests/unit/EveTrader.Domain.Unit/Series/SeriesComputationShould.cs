@@ -40,7 +40,7 @@ public sealed class SeriesComputationShould
         SeriesInputs shuffled = inputs with
         {
             Events = [.. inputs.Events.Reverse()],
-            Features = [.. inputs.Features.OrderBy(static snapshot => snapshot.Observation.Value.GetHashCode(StringComparison.Ordinal))],
+            Features = [.. inputs.Features.OrderBy(static known => known.Features.Observation.Value.GetHashCode(StringComparison.Ordinal))],
             Coverage = [.. inputs.Coverage.Reverse()],
         };
 
@@ -104,6 +104,18 @@ public sealed class SeriesComputationShould
         // Снимки в :15 и :45. На 03:00 последний снимок был в 02:45, следующий ждут в
         // 03:15: отрезок [02:45, 03:00) ещё не наблюдён, но и не пропущен.
         SeriesComputed computed = SeriesComputation.Compute(Inputs(offsetMinutes: 15), Definitions, Interval);
+
+        Verdict(computed, SeriesKind.ObservedTurnover, Start.AddHours(3)).Window.Admission
+            .ShouldBe(SeriesAdmission.Admitted);
+    }
+
+    [Fact]
+    public void ForgiveTheSourceItsJitter()
+    {
+        // Объявлен шаг 30 минут, а снимки приходят через 31: источник публикует их с
+        // плавающей секундой. Это дрожь, а не разрыв — окно допускается.
+        SeriesComputed computed = SeriesComputation.Compute(
+            Inputs(spacing: TimeSpan.FromMinutes(31)), Definitions, Interval);
 
         Verdict(computed, SeriesKind.ObservedTurnover, Start.AddHours(3)).Window.Admission
             .ShouldBe(SeriesAdmission.Admitted);
@@ -180,6 +192,37 @@ public sealed class SeriesComputationShould
     }
 
     [Fact]
+    public void LeaveOutFeaturesLearnedAfterTheWindowEnd()
+    {
+        SeriesInputs inputs = Inputs();
+
+        // Снимок за 02:30 с толпой конкурентов. Узнай система о нём сразу, он вошёл бы в
+        // точку на 03:00; узнала она в 05:00 — досинхронизация задним числом.
+        var timely = Depth(SeriesComputation.Compute(Crowded(inputs, Start.AddMinutes(150)), Definitions, Interval), Start.AddHours(3));
+        var late = Depth(SeriesComputation.Compute(Crowded(inputs, Start.AddHours(5)), Definitions, Interval), Start.AddHours(3));
+        var without = Depth(SeriesComputation.Compute(inputs, Definitions, Interval), Start.AddHours(3));
+
+        timely.ShouldNotBe(without);
+        late.ShouldBe(without);
+    }
+
+    [Fact]
+    public void TakeTheVersionOfASnapshotKnownAtTheWindowEnd()
+    {
+        SeriesInputs inputs = Inputs();
+        var without = Depth(SeriesComputation.Compute(inputs, Definitions, Interval), Start.AddHours(3));
+
+        // Снимок за 02:30 уточнён: та же версия факта, пятьдесят конкурентов. Узнай система
+        // об уточнении до 03:00, точка взяла бы его вместо исходной версии; узнала она в
+        // 05:00 — точка на 03:00 считается по исходной версии, а не остаётся без снимка.
+        var timely = Depth(SeriesComputation.Compute(Refined(inputs, Start.AddMinutes(165)), Definitions, Interval), Start.AddHours(3));
+        var late = Depth(SeriesComputation.Compute(Refined(inputs, Start.AddHours(5)), Definitions, Interval), Start.AddHours(3));
+
+        timely.ShouldBeGreaterThan(without);
+        late.ShouldBe(without);
+    }
+
+    [Fact]
     public void ComputeEveryKindForAnAdmittedWindow()
     {
         SeriesComputed computed = SeriesComputation.Compute(Inputs(), Definitions, Interval);
@@ -203,6 +246,48 @@ public sealed class SeriesComputationShould
         ]);
     }
 
+    private static SeriesInputs Crowded(SeriesInputs inputs, DateTimeOffset knownAt) =>
+        inputs with
+        {
+            Features =
+            [
+                .. inputs.Features,
+                new KnownBookFeatures(
+                    inputs.Features[0].Features with
+                    {
+                        SellOrdersWithin = [50, 50],
+                        ObservedAt = Start.AddMinutes(150),
+                        Observation = ObservationId.From("late-0230"),
+                    },
+                    "features/late-0230",
+                    knownAt),
+            ],
+        };
+
+    private static SeriesInputs Refined(SeriesInputs inputs, DateTimeOffset knownAt)
+    {
+        KnownBookFeatures original = inputs.Features.Single(static known => known.Features.ObservedAt == Start.AddMinutes(150));
+
+        return inputs with
+        {
+            Features =
+            [
+                .. inputs.Features,
+                new KnownBookFeatures(
+                    original.Features with { SellOrdersWithin = [50, 50], Observation = ObservationId.From("refined-0230") },
+                    original.FactKey,
+                    knownAt),
+            ],
+        };
+    }
+
+    private static string FeatureKey(DateTimeOffset at) =>
+        string.Create(CultureInfo.InvariantCulture, $"features/34/60003760/{at:yyyyMMddTHHmmssZ}");
+
+    private static double Depth(SeriesComputed computed, DateTimeOffset end) =>
+        computed.Points.Single(point =>
+            point.Definition.Kind == SeriesKind.CompetitorDepth && point.Side == SeriesSide.Sell && point.Window.To == end).Value;
+
     private static SeriesWindowVerdict Verdict(SeriesComputed computed, SeriesKind kind, DateTimeOffset end) =>
         computed.Windows.Single(window => window.Definition.Kind == kind && window.Window.Range.To == end);
 
@@ -220,15 +305,15 @@ public sealed class SeriesComputationShould
     /// Снимки каждые полчаса с 00:00 до 06:00; первый — базовая линия. По паре 34 в
     /// Jita 4-4 идут исполнения, перестановки и одно исчезновение.
     /// </summary>
-    private static SeriesInputs Inputs(int offsetMinutes = 0)
+    private static SeriesInputs Inputs(int offsetMinutes = 0, TimeSpan? spacing = null)
     {
         var coverage = new List<CoverageEntry>();
-        var features = new List<BookFeatures>();
+        var features = new List<KnownBookFeatures>();
         var events = new List<OrderEvent>();
 
         for (var slot = 0; slot <= 12; slot++)
         {
-            DateTimeOffset at = Start.AddMinutes(offsetMinutes) + (Step * slot);
+            DateTimeOffset at = Start.AddMinutes(offsetMinutes) + ((spacing ?? Step) * slot);
             var observation = ObservationId.From($"obs-{slot:00}");
 
             coverage.Add(CoverageEntries.Success(
@@ -241,7 +326,7 @@ public sealed class SeriesComputationShould
                 observationStep: Step,
                 knownAt: at));
 
-            features.Add(new BookFeatures(
+            features.Add(new KnownBookFeatures(new BookFeatures(
                 34,
                 60003760,
                 IskPrice.FromIsk(90m + (slot % 3)),
@@ -254,7 +339,7 @@ public sealed class SeriesComputationShould
                 SellOrdersWithin: [2 + (slot % 3), 6],
                 at,
                 observation,
-                Incomplete: false));
+                Incomplete: false), FeatureKey(at), at));
 
             if (slot == 0)
             {

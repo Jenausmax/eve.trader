@@ -28,7 +28,6 @@ public sealed class ObservationIntake(
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(source);
-        ArgumentNullException.ThrowIfNull(featureOptions);
 
         // Охват признаков проверяется до первого наблюдения: отказ посреди прогона оставил
         // бы часть наблюдений записанной, часть — нет.

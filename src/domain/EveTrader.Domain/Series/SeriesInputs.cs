@@ -10,7 +10,7 @@ namespace EveTrader.Domain.Series;
 /// </summary>
 /// <param name="Region">Регион.</param>
 /// <param name="Events">События жизни ордера.</param>
-/// <param name="Features">Признаки стакана.</param>
+/// <param name="Features">Признаки стакана с моментом знания о каждом.</param>
 /// <param name="Thresholds">Пороги, с которыми признаки посчитаны.</param>
 /// <param name="Coverage">Записи покрытия региона.</param>
 /// <param name="Baselines">Наблюдения, записавшие базовую линию.</param>
@@ -19,7 +19,7 @@ namespace EveTrader.Domain.Series;
 public sealed record SeriesInputs(
     RegionId Region,
     IReadOnlyList<OrderEvent> Events,
-    IReadOnlyList<BookFeatures> Features,
+    IReadOnlyList<KnownBookFeatures> Features,
     IReadOnlyList<int> Thresholds,
     IReadOnlyList<CoverageEntry> Coverage,
     IReadOnlySet<ObservationId> Baselines,

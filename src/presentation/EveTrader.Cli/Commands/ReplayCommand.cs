@@ -23,6 +23,13 @@ internal static class ReplayCommand
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(options);
 
+        FeatureOptions features = FeatureScopes.Of(options);
+
+        if (FeatureScopes.Rejected(features))
+        {
+            return 2;
+        }
+
         var target = RebuildTarget.RootFor(options);
 
         using var into = new CliContext(target, context.Loggers);
@@ -37,9 +44,7 @@ internal static class ReplayCommand
         IntakeReport report = await into.Intake.RunAsync(
             source,
             DiffOptions.Default,
-            // Реплей перестраивает записанное, поэтому без объявления охват — все пары, как
-            // у записанного. Сузить можно явно: так снимается объём узкого охвата.
-            options.Values.ContainsKey(FeatureScopes.Option) ? FeatureScopes.Of(options) : FeatureOptions.AllPairs,
+            features,
             StaticDataVersion.From(options.StaticData),
             cancellationToken).ConfigureAwait(false);
 
