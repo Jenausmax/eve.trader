@@ -48,6 +48,25 @@ public sealed class ComputationBoundaryShould
         result.FailingTypeNames.ShouldBeNull();
     }
 
+    [Theory]
+    [InlineData("EveTrader.Application.Series")]
+    [InlineData("EveTrader.Application.Signals")]
+    [InlineData("EveTrader.Application.Backtest")]
+    public void KeepTheAggregatePortOutOfSeriesSignalsAndBacktest(string consumer)
+    {
+        // Сценарий market-signals/feature-series §«Ряды считаются вне хранилища»: ряды,
+        // сигналы и бэктест получают плоские строки и считают сами. Порт агрегатов им
+        // недоступен — посчитать ряд запросом нечем.
+        NetArchTest.Rules.TestResult result = Types.InAssembly(Application)
+            .That()
+            .ResideInNamespace(consumer)
+            .Should()
+            .NotHaveDependencyOn(ReportingNamespace)
+            .GetResult();
+
+        result.FailingTypeNames.ShouldBeNull();
+    }
+
     [Fact]
     public void KeepTheAggregatePortOutOfTheFlatRowReader()
     {

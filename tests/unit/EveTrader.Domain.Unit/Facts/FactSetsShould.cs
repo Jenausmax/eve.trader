@@ -13,8 +13,18 @@ public sealed class FactSetsShould
     [InlineData(FactSet.Coverage)]
     public void TreatObservedDataAsRaw(FactSet set) => FactSets.IsRaw(set).ShouldBeTrue();
 
+    [Theory]
+    [InlineData(FactSet.BookFeatures)]
+    [InlineData(FactSet.FeatureSeries)]
+    [InlineData(FactSet.Signals)]
+    public void TreatFeaturesSeriesAndSignalsAsDerived(FactSet set) => FactSets.IsRaw(set).ShouldBeFalse();
+
     [Fact]
-    public void TreatFeaturesAsDerived() => FactSets.IsRaw(FactSet.BookFeatures).ShouldBeFalse();
+    public void KeepBacktestReportsAsRecordsOfRunsThatHappened() =>
+        // Отчёт — запись о том, что прогон состоялся и чем кончился, включая момент
+        // прогона. Повторный прогон даёт другой отчёт, а не тот же: удалять его как
+        // перестраиваемый нельзя.
+        FactSets.IsRaw(FactSet.BacktestReports).ShouldBeTrue();
 
     [Fact]
     public void GiveEverySetItsOwnPathSegment()

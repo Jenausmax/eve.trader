@@ -24,4 +24,18 @@ public interface IFactRowReader
         TimeRange observed,
         DateTimeOffset? asOf,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Все версии строк набора за интервал, известные к <paramref name="asOf" />. Выбор
+    /// версии на момент — за вызывающим (<see cref="Bitemporal" />).
+    ///
+    /// Нужен там, где моментов знания много, а читать хочется один раз: бэктест решает в
+    /// сотнях моментов подряд, и каждому нужна своя версия каждого факта. Читать по
+    /// запросу на момент значило бы перечитывать одни и те же сутки сотни раз.
+    /// </summary>
+    Task<IReadOnlyList<FactRow>> SelectAsync(
+        FactSet set,
+        TimeRange observed,
+        DateTimeOffset? asOf,
+        CancellationToken cancellationToken);
 }

@@ -21,6 +21,10 @@ namespace EveTrader.Cli;
 /// <param name="Limit">Сколько строк показать.</param>
 /// <param name="RawPages">Корень окна сырых страниц.</param>
 /// <param name="Scratch">Куда писать перестроенное при приёмке и реплее.</param>
+/// <param name="Values">
+/// Все параметры по именам — для команд со своим набором ключей (правило сигнала,
+/// бэктест), которым общий набор выше тесен.
+/// </param>
 public sealed record CommandLine(
     string Command,
     string Lake,
@@ -33,7 +37,8 @@ public sealed record CommandLine(
     string Set,
     int Limit,
     string? RawPages,
-    string? Scratch)
+    string? Scratch,
+    IReadOnlyDictionary<string, string> Values)
 {
     public const string Usage = """
         EveTrader.Cli <команда> [параметры]
@@ -49,6 +54,10 @@ public sealed record CommandLine(
           facts             осмотр фактов набора
           resource-usage    расход ресурсов за интервал
           history-stats     замеры по импортированной дневной истории
+          series            материализация рядов признаков правила за интервал
+          signals           сигналы станционной торговли за интервал с обоснованием
+          backtest          прогон правила на истории и отчёт о качестве
+          backtest-reports  записанные отчёты о прогонах и их сравнение
 
         Параметры:
           --lake <путь>         корень озера (обязательно)
@@ -62,6 +71,26 @@ public sealed record CommandLine(
           --limit <n>           сколько строк показать (по умолчанию 20)
           --raw-pages <путь>    корень окна сырых страниц
           --scratch <путь>      куда писать перестроенное (по умолчанию рядом с озером)
+          --features <охват>    охват признаков стакана: rule (пары правила — Jita 4-4),
+                                all (все пары), none, station:<id,...>; без него
+                                import-orderbook и collect отклоняются
+
+        Параметры правила (series, signals, backtest) — значений по умолчанию у ставок нет:
+          --broker <доля>       брокерская комиссия, обе стороны (например 0.015)
+          --tax <доля>          налог с продажи
+          --relist <доля>       плата за перестановку
+          --label <метка>       читаемая часть имени набора параметров (по умолчанию jita)
+          --window <часы>       окно рядов признаков (по умолчанию 2)
+          --step <минуты>       шаг решений и рядов (по умолчанию 30)
+          --min-margin <доля>   минимальная маржа после комиссий (по умолчанию 0.02)
+          --min-turnover <шт>   минимальный наблюдённый оборот каждой стороны (по умолчанию 1)
+          --band <б.п.>         полоса конкурентов от лучшей цены (по умолчанию 100)
+          --max-competitors <n> терпимое число конкурентов в полосе (по умолчанию 10)
+          --max-relists <n>     терпимое число перестановок за окно (по умолчанию 20)
+          --buy-relists <n>     перестановок, закладываемых в маржу покупки (по умолчанию 1)
+          --sell-relists <n>    перестановок, закладываемых в маржу продажи (по умолчанию 1)
+          --horizon <часы>      горизонт оценки исхода в бэктесте (по умолчанию 2)
+          --max-unknown <доля>  порог доли неизвестных исходов (по умолчанию 0.5)
         """;
 
     public static CommandLine? Parse(string[] args)
@@ -97,7 +126,8 @@ public sealed record CommandLine(
             values.GetValueOrDefault("set", "order-events"),
             Number(values, "limit", 20),
             values.GetValueOrDefault("raw-pages"),
-            values.GetValueOrDefault("scratch"));
+            values.GetValueOrDefault("scratch"),
+            values);
     }
 
     /// <summary>

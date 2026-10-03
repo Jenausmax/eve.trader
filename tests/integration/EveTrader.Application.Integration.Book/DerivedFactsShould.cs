@@ -83,6 +83,35 @@ public sealed class DerivedFactsShould
     }
 
     [Fact]
+    public async Task RoundTripOrdersWithinThresholdsNextToTheDepth()
+    {
+        using var lake = new BookLake();
+        CancellationToken token = TestContext.Current.CancellationToken;
+
+        // Продажа: два ордера в 1 % от лучшей цены, третий — только в 5 %.
+        _ = await lake.ObserveAsync(
+            [
+                Samples.Order(1, price: 100, remain: 7),
+                Samples.Order(2, price: 100.5m, remain: 3),
+                Samples.Order(3, price: 104, remain: 1),
+            ],
+            Samples.Meta(0),
+            token).ConfigureAwait(true);
+
+        FactRow features = (await lake.ReadAsync(FactSet.BookFeatures, token).ConfigureAwait(true))
+            .ShouldHaveSingleItem();
+
+        features.Values[BookFeatureFacts.OrdersWithinColumn(isBuy: false, 100)].ShouldBe(2L);
+        features.Values[BookFeatureFacts.OrdersWithinColumn(isBuy: false, 500)].ShouldBe(3L);
+        features.Values[BookFeatureFacts.DepthColumn(isBuy: false, 100)].ShouldBe(10L);
+
+        // Стороны покупки нет — ни глубина, ни счётчики по ней не записаны: колонка пуста,
+        // а не ноль.
+        features.Values[BookFeatureFacts.OrdersWithinColumn(isBuy: true, 100)].ShouldBeNull();
+        features.Values[BookFeatureFacts.DepthColumn(isBuy: true, 100)].ShouldBeNull();
+    }
+
+    [Fact]
     public async Task ConfirmEverySetOfOneObservationWithOneCoverageEntry()
     {
         using var lake = new BookLake();

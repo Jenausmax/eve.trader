@@ -24,10 +24,6 @@ public static class EventSeries
         SeriesWindow window,
         IEnumerable<OrderEvent> events)
     {
-        ArgumentNullException.ThrowIfNull(definition);
-        ArgumentNullException.ThrowIfNull(window);
-        ArgumentNullException.ThrowIfNull(events);
-
         if (!window.IsAdmitted)
         {
             return [];
@@ -66,17 +62,15 @@ public static class EventSeries
         SeriesWindow window,
         IReadOnlyList<OrderEvent> events)
     {
-        ArgumentNullException.ThrowIfNull(events);
-
-        var totals = new Dictionary<(int TypeId, long LocationId, SeriesSide Side), double>();
+        var totals = new Dictionary<SeriesKey, long>();
 
         foreach (OrderEvent moment in events.Where(static moment => moment.Kind is OrderEventKind.ObservedFill))
         {
-            (int, long, SeriesSide) key = (moment.TypeId, moment.LocationId, SideOf(moment));
+            var key = new SeriesKey(moment.TypeId, moment.LocationId, SideOf(moment));
             totals[key] = totals.GetValueOrDefault(key) + moment.FilledVolume;
         }
 
-        return Points(definition, region, window, totals);
+        return Points(definition, region, window, totals.ToDictionary(static pair => pair.Key, static pair => (double)pair.Value));
     }
 
     /// <summary>
@@ -92,17 +86,15 @@ public static class EventSeries
         SeriesWindow window,
         IReadOnlyList<OrderEvent> events)
     {
-        ArgumentNullException.ThrowIfNull(events);
-
-        var counts = new Dictionary<(int TypeId, long LocationId, SeriesSide Side), double>();
+        var counts = new Dictionary<SeriesKey, long>();
 
         foreach (OrderEvent moment in events.Where(static moment => moment.Kind is OrderEventKind.Repriced))
         {
-            (int, long, SeriesSide) key = (moment.TypeId, moment.LocationId, SideOf(moment));
-            counts[key] = counts.GetValueOrDefault(key) + 1d;
+            var key = new SeriesKey(moment.TypeId, moment.LocationId, SideOf(moment));
+            counts[key] = counts.GetValueOrDefault(key) + 1;
         }
 
-        return Points(definition, region, window, counts);
+        return Points(definition, region, window, counts.ToDictionary(static pair => pair.Key, static pair => (double)pair.Value));
     }
 
     /// <summary>
@@ -122,26 +114,19 @@ public static class EventSeries
         SeriesWindow window,
         IReadOnlyList<OrderEvent> events)
     {
-        ArgumentNullException.ThrowIfNull(events);
-
         var filled = new HashSet<long>(events
             .Where(static moment => moment.Kind is OrderEventKind.ObservedFill)
             .Select(static moment => moment.OrderId));
 
-        var gone = new Dictionary<(int TypeId, long LocationId, SeriesSide Side), (int Total, int Filled)>();
+        var gone = new Dictionary<SeriesKey, SeriesTally>();
 
         foreach (OrderEvent moment in events.Where(static moment => moment.Kind is OrderEventKind.Disappeared))
         {
-            (int, long, SeriesSide) key = (moment.TypeId, moment.LocationId, SeriesSide.Both);
-            (var total, var withFill) = gone.GetValueOrDefault(key);
-            gone[key] = (total + 1, withFill + (filled.Contains(moment.OrderId) ? 1 : 0));
+            var key = new SeriesKey(moment.TypeId, moment.LocationId, SeriesSide.Both);
+            gone[key] = gone.GetValueOrDefault(key).Add(filled.Contains(moment.OrderId) ? 1 : 0);
         }
 
-        return Points(
-            definition,
-            region,
-            window,
-            gone.ToDictionary(static pair => pair.Key, static pair => pair.Value.Filled / (double)pair.Value.Total));
+        return Points(definition, region, window, gone.ToDictionary(static pair => pair.Key, static pair => pair.Value.Share));
     }
 
     public static SeriesSide SideOf(in OrderEvent moment) => moment.IsBuy ? SeriesSide.Buy : SeriesSide.Sell;
@@ -158,17 +143,12 @@ public static class EventSeries
         SeriesDefinition definition,
         RegionId region,
         SeriesWindow window,
-        IReadOnlyDictionary<(int TypeId, long LocationId, SeriesSide Side), double> values)
+        IReadOnlyDictionary<SeriesKey, double> values)
     {
-        ArgumentNullException.ThrowIfNull(window);
-        ArgumentNullException.ThrowIfNull(values);
-
         return
         [
             .. values
-                .OrderBy(static pair => pair.Key.TypeId)
-                .ThenBy(static pair => pair.Key.LocationId)
-                .ThenBy(static pair => (int)pair.Key.Side)
+                .OrderBy(static pair => pair.Key)
                 .Select(pair => new SeriesPoint(
                     definition,
                     region,

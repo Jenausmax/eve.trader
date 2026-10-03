@@ -26,13 +26,19 @@ internal static class CollectCommand
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(options);
 
+        var settings = new ObservationOptions { StaticData = options.StaticData, Features = FeatureScopes.Of(options) };
+
+        if (FeatureScopes.Rejected(settings.Features))
+        {
+            return 2;
+        }
+
         var esi = new EsiOptions();
 
         using var client = new HttpClient { BaseAddress = esi.BaseAddress };
         client.DefaultRequestHeaders.Add("User-Agent", esi.UserAgent);
         client.Timeout = TimeSpan.FromMinutes(2);
 
-        var settings = new ObservationOptions { StaticData = options.StaticData };
         IReadOnlyList<RegionId> watched = options.Regions.Count == 0
             ? settings.Hubs
             : [.. options.Regions.Select(RegionId.From)];

@@ -70,5 +70,15 @@ public sealed record SeriesDefinition
             : head;
     }
 
+    /// <summary>
+    /// Равенство — по ключу. Перечень источников выводится из вида и списком по ссылке
+    /// не сравним; ключ же несёт всё определение целиком, и два определения с одним
+    /// ключом — один и тот же признак.
+    /// </summary>
+    public bool Equals(SeriesDefinition? other) =>
+        other is not null && string.Equals(Key, other.Key, StringComparison.Ordinal);
+
+    public override int GetHashCode() => StringComparer.Ordinal.GetHashCode(Key);
+
     public override string ToString() => Key;
 }

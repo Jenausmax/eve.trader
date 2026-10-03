@@ -45,6 +45,10 @@ public sealed class BookFeatureBuilder(FeatureOptions options)
             IskPrice? bestBid = side.Buy.Count == 0 ? null : side.Buy.Max(static order => order.Price);
             IskPrice? bestAsk = side.Sell.Count == 0 ? null : side.Sell.Min(static order => order.Price);
 
+            // Объём и число ордеров внутри порогов — одной проходкой по стороне.
+            SideDepth buy = BookDepth.Within(side.Buy, bestBid, isBuy: true, options.DepthThresholdsBasisPoints);
+            SideDepth sell = BookDepth.Within(side.Sell, bestAsk, isBuy: false, options.DepthThresholdsBasisPoints);
+
             features.Add(new BookFeatures(
                 typeId,
                 locationId,
@@ -52,8 +56,10 @@ public sealed class BookFeatureBuilder(FeatureOptions options)
                 bestAsk,
                 side.Buy.Count,
                 side.Sell.Count,
-                BookDepth.Within(side.Buy, bestBid, isBuy: true, options.DepthThresholdsBasisPoints),
-                BookDepth.Within(side.Sell, bestAsk, isBuy: false, options.DepthThresholdsBasisPoints),
+                buy.Volumes,
+                sell.Volumes,
+                buy.Orders,
+                sell.Orders,
                 meta.Collected.To,
                 observation,
                 !meta.IsComplete));

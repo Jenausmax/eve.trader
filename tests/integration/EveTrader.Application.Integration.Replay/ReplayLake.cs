@@ -47,7 +47,7 @@ internal sealed class ReplayLake : IDisposable
 
     public Task<IntakeReport> RunAsync(IObservationSource source, CancellationToken cancellationToken) =>
         Intake.RunAsync(
-            source, DiffOptions.Default, FeatureOptions.Default,
+            source, DiffOptions.Default, FeatureOptions.AllPairs,
             StaticDataVersion.From("sde-test"), cancellationToken);
 
     /// <summary>Источник реплея поверх этого озера.</summary>

@@ -29,6 +29,10 @@ public sealed class ObservationIntake(
     {
         ArgumentNullException.ThrowIfNull(source);
 
+        // Охват признаков проверяется до первого наблюдения: отказ посреди прогона оставил
+        // бы часть наблюдений записанной, часть — нет.
+        featureOptions.EnsureDeclared();
+
         var observers = new Dictionary<RegionId, RegionObserver>();
         var regions = new HashSet<RegionId>();
         var written = 0;

@@ -33,7 +33,9 @@ internal static class AcceptCommand
             TimeRange.Between(options.From, options.To),
             [.. options.Regions.Select(RegionId.From)],
             DiffOptions.Default,
-            FeatureOptions.Default,
+            // Приёмка сверяет перестроенное с записанным полным охватом — и охват у неё
+            // тот же, объявленно.
+            FeatureOptions.AllPairs,
             StaticDataVersion.From(options.StaticData),
             cancellationToken).ConfigureAwait(false);
 

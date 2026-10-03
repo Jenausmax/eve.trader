@@ -17,6 +17,13 @@ internal static class ImportOrderBookCommand
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(options);
 
+        FeatureOptions features = FeatureScopes.Of(options);
+
+        if (FeatureScopes.Rejected(features))
+        {
+            return 2;
+        }
+
         var everef = new EveRefOptions();
 
         using var client = new HttpClient { BaseAddress = everef.OrdersBaseAddress };
@@ -35,7 +42,7 @@ internal static class ImportOrderBookCommand
                 TimeRange.Between(options.From, options.To),
                 [.. options.Regions.Select(RegionId.From)]),
             DiffOptions.Default,
-            FeatureOptions.Default,
+            features,
             StaticDataVersion.From(options.StaticData),
             cancellationToken).ConfigureAwait(false);
 

@@ -5,6 +5,7 @@ using EveTrader.Application.Diagnostics;
 using EveTrader.Application.Facts;
 using EveTrader.Application.Intake;
 using EveTrader.Application.Live;
+using EveTrader.Application.Series;
 using EveTrader.Application.Workers;
 using EveTrader.Domain.Scope;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,20 +23,28 @@ namespace EveTrader.Application.Unit.Live;
 public sealed class WorkerSeparationShould
 {
     private static readonly Type[] Workers =
-        [typeof(MarketObservationWorker), typeof(DailyHistoryWorker), typeof(CompactionWorker)];
+    [
+        typeof(MarketObservationWorker),
+        typeof(DailyHistoryWorker),
+        typeof(CompactionWorker),
+        typeof(SeriesMaterializationWorker),
+    ];
 
     [Fact]
-    public void KeepObservationHistoryAndCompactionApart()
+    public void KeepObservationHistoryCompactionAndSeriesApart()
     {
-        Workers.Length.ShouldBe(3);
+        // Материализация рядов — четвёртый воркер, а не ветка наблюдения: темп, вход и
+        // счётчики у неё свои.
+        Workers.Length.ShouldBe(4);
         Workers.ShouldAllBe(static worker => worker.IsSubclassOf(typeof(ScheduledWorkerBase)));
-        Workers.Select(static worker => worker.Name).Distinct().Count().ShouldBe(3);
+        Workers.Select(static worker => worker.Name).Distinct().Count().ShouldBe(4);
     }
 
     [Fact]
     public void GiveEachWorkerItsOwnCounters()
     {
-        Type[] cycles = [typeof(CollectionCycle), typeof(DailyHistoryCycle), typeof(CompactionCycle)];
+        Type[] cycles =
+            [typeof(CollectionCycle), typeof(DailyHistoryCycle), typeof(CompactionCycle), typeof(SeriesCycle)];
 
         var names = cycles
             .Select(static cycle => cycle.GetProperties()
@@ -60,8 +69,9 @@ public sealed class WorkerSeparationShould
         // пауз; сетки нет, потому что общего среза мира нет.
         _ = ScheduleOf(Observation()).ShouldBeOfType<AdaptivePollSchedule>();
 
-        // История и компакция привязаны к своему темпу, а не к готовности регионов.
+        // История, компакция и ряды привязаны к своему темпу, а не к готовности регионов.
         _ = ScheduleOf(Compaction()).ShouldBeOfType<IntervalSchedule>();
+        _ = ScheduleOf(Series()).ShouldBeOfType<IntervalSchedule>();
     }
 
     [Fact]
@@ -104,6 +114,19 @@ public sealed class WorkerSeparationShould
             TimeProvider.System,
             null,
             NullLogger<CompactionWorker>.Instance);
+
+    private static SeriesMaterializationWorker Series() =>
+        new(
+            new ServiceCollection().BuildServiceProvider(),
+            new SeriesMaterialization(
+                Substitute.For<IFactRowReader>(),
+                Substitute.For<ICoverageLog>(),
+                Substitute.For<IMaterializationRegistry>(),
+                Substitute.For<IFactWriter>()),
+            new SeriesOptions(),
+            TimeProvider.System,
+            null,
+            NullLogger<SeriesMaterializationWorker>.Instance);
 
     /// <summary>Расписание воркера. Свойство защищённое — читается рефлексией.</summary>
     private static WorkerSchedule ScheduleOf(ScheduledWorkerBase worker) =>

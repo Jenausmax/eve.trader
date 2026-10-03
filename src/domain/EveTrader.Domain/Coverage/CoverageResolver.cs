@@ -26,8 +26,10 @@ public static class CoverageResolver
         ArgumentNullException.ThrowIfNull(materialized);
         ArgumentNullException.ThrowIfNull(upstream);
 
+        // Подтверждения производных порций наблюдениями не являются: о рынке они не
+        // говорят и в разбор покрытия не входят.
         var relevant = entries
-            .Where(entry => entry.Region == region && entry.Collected.Overlaps(requested))
+            .Where(entry => entry.IsObservation && entry.Region == region && entry.Collected.Overlaps(requested))
             .ToList();
 
         IReadOnlyList<TimeRange> covered = TimeRanges.Intersect(
